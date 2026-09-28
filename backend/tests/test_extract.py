@@ -100,6 +100,24 @@ def test_gemini_time_budget_stops_the_search(monkeypatch):
     assert calls == []
 
 
+def test_scan_failure_keeps_the_real_llm_error(monkeypatch):
+    from amanat import config
+    from amanat.extractors import extract_document, llm
+
+    def busy(text, pdf=None):
+        raise llm.ExtractionError("gemini-3.8-flash: HTTP 429")
+
+    monkeypatch.setattr(config, "resolve_provider", lambda: "gemini")
+    monkeypatch.setattr(config, "USE_CACHE", False)
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", busy)
+    import amanat.extractors as ex
+    monkeypatch.setitem(ex.PROVIDERS, "gemini", busy)
+    scan = (Path(__file__).resolve().parent.parent / "dev_samples" / "scans" / "sbi_fd_receipt_scanned.pdf")
+    r = extract_document("scan.pdf", scan.read_bytes())
+    assert r["assets"] == []
+    assert "Scanned PDF" in r["note"] and "HTTP 429" in r["note"] and "Try again" in r["note"]
+
+
 def test_mask_account():
     assert mask_account("30556781234") == "XXXX1234"
     assert mask_account("XXXX1234") == "XXXX1234"

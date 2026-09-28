@@ -70,7 +70,11 @@ def extract_document(filename: str, data: bytes) -> dict:
     if dropped:
         note = ((note + "; ") if note else "") + f"dropped {dropped} unverifiable entries"
     if not text and extracted_by == "rules":
-        note = "No text layer found (scanned PDF?). Configure Claude or Gemini to read scans."
+        scan_note = ("Scanned PDF (no text layer): only an AI model can read it"
+                     + (", and it was unavailable, so nothing was extracted. Try again shortly."
+                        if provider in PROVIDERS else
+                        ". Set GEMINI_API_KEY or ANTHROPIC_API_KEY to read scans."))
+        note = f"{scan_note} ({note})" if note else scan_note
 
     # Cache only real LLM output: never a fallback result, and never rules output
     # (it is instant anyway, and a stale copy would hide rule fixes).
