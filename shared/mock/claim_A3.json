@@ -1,0 +1,22 @@
+{
+  "asset_id": "A3",
+  "institution": "LIC",
+  "asset_type": "Life Insurance",
+  "steps": [
+    "Get the death certificate issued by the municipal authority",
+    "Inform the LIC servicing branch that issued the policy",
+    "Fill the claim form for death claims",
+    "Submit the original policy bond",
+    "Submit nominee KYC (Aadhaar/PAN) and bank details for payout"
+  ],
+  "documents": [
+    "Death certificate",
+    "Original policy bond",
+    "Claim form",
+    "Nominee ID proof",
+    "Cancelled cheque / bank details"
+  ],
+  "sources": ["PLACEHOLDER: Unnati to add official LIC link"],
+  "disclaimer": "Guidance only, not legal advice.",
+  "source": "mock"
+}

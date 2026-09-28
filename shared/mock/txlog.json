@@ -1,0 +1,16 @@
+[
+  {
+    "event": "VaultHashStored",
+    "tx_hash": "0xmock000000000000000000000000000000000000000000000000000000000001",
+    "timestamp": "2026-09-28T18:00:00Z",
+    "explorer_url": null,
+    "details": "Vault hash committed on-chain"
+  },
+  {
+    "event": "CheckedIn",
+    "tx_hash": "0xmock000000000000000000000000000000000000000000000000000000000002",
+    "timestamp": "2026-09-28T18:00:05Z",
+    "explorer_url": null,
+    "details": "Ramesh checked in"
+  }
+]

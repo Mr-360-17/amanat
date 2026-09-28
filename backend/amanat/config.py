@@ -1,0 +1,53 @@
+"""Runtime settings, read from environment variables (and backend/.env if present)."""
+import os
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+REPO_DIR = BACKEND_DIR.parent
+MOCK_DIR = REPO_DIR / "shared" / "mock"
+
+
+def _load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(BACKEND_DIR / ".env")
+
+DATA_DIR = Path(os.getenv("AMANAT_DATA_DIR", BACKEND_DIR / "data"))
+CACHE_DIR = Path(os.getenv("AMANAT_CACHE_DIR", BACKEND_DIR / "cache"))
+
+# auto | claude | gemini | ollama | rules
+LLM_PROVIDER = os.getenv("AMANAT_LLM", "auto").lower()
+CLAUDE_MODEL = os.getenv("AMANAT_CLAUDE_MODEL", "claude-opus-5")
+CLAUDE_EFFORT = os.getenv("AMANAT_CLAUDE_EFFORT", "low")
+GEMINI_MODEL = os.getenv("AMANAT_GEMINI_MODEL", "gemini-2.5-flash")
+OLLAMA_URL = os.getenv("AMANAT_OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("AMANAT_OLLAMA_MODEL", "llama3.2:1b")
+
+# Re-use extraction results for a file we've already seen (demo safety net).
+USE_CACHE = os.getenv("AMANAT_USE_CACHE", "1") == "1"
+
+# Pratham's keeper agent. Empty = serve mock status/txlog.
+KEEPER_URL = os.getenv("AMANAT_KEEPER_URL", "").rstrip("/")
+
+# Hex-encoded 32-byte AES key. Empty = generate one into data/vault.key.
+VAULT_KEY_HEX = os.getenv("AMANAT_VAULT_KEY", "")
+
+CORS_ORIGINS = [o.strip() for o in os.getenv("AMANAT_CORS_ORIGINS", "*").split(",") if o.strip()]
+
+
+def resolve_provider() -> str:
+    if LLM_PROVIDER != "auto":
+        return LLM_PROVIDER
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return "claude"
+    if os.getenv("GEMINI_API_KEY"):
+        return "gemini"
+    return "rules"

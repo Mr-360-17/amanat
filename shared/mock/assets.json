@@ -1,0 +1,73 @@
+[
+  {
+    "id": "A1",
+    "owner": "Ramesh Kumar",
+    "institution": "SBI",
+    "asset_type": "Savings Account",
+    "account_number": "XXXX4821",
+    "value": 145000,
+    "nominee": "Sunita Kumar",
+    "beneficiaries": [
+      { "name": "Sunita Kumar", "relation": "Wife", "share": 100 }
+    ],
+    "claim_status": "not_started",
+    "source_doc": "sbi_savings_statement.pdf"
+  },
+  {
+    "id": "A2",
+    "owner": "Ramesh Kumar",
+    "institution": "SBI",
+    "asset_type": "Fixed Deposit",
+    "account_number": "XXXX1234",
+    "value": 500000,
+    "nominee": null,
+    "beneficiaries": [
+      { "name": "Sunita Kumar", "relation": "Wife", "share": 60 },
+      { "name": "Rahul Kumar", "relation": "Son", "share": 40 }
+    ],
+    "claim_status": "not_started",
+    "source_doc": "sbi_fd_receipt.pdf"
+  },
+  {
+    "id": "A3",
+    "owner": "Ramesh Kumar",
+    "institution": "LIC",
+    "asset_type": "Life Insurance",
+    "account_number": "XXXXX7730",
+    "value": 1000000,
+    "nominee": "Sunita Kumar",
+    "beneficiaries": [
+      { "name": "Sunita Kumar", "relation": "Wife", "share": 100 }
+    ],
+    "claim_status": "not_started",
+    "source_doc": "lic_policy_bond.pdf"
+  },
+  {
+    "id": "A4",
+    "owner": "Ramesh Kumar",
+    "institution": "EPFO",
+    "asset_type": "EPF",
+    "account_number": "KNBNG00XXXXX0000056789",
+    "value": 320000,
+    "nominee": "Sunita Kumar",
+    "beneficiaries": [
+      { "name": "Sunita Kumar", "relation": "Wife", "share": 100 }
+    ],
+    "claim_status": "not_started",
+    "source_doc": "epf_passbook.pdf"
+  },
+  {
+    "id": "A5",
+    "owner": "Ramesh Kumar",
+    "institution": "HDFC Mutual Fund",
+    "asset_type": "Mutual Fund",
+    "account_number": "XXXX9012/34",
+    "value": 180000,
+    "nominee": "Rahul Kumar",
+    "beneficiaries": [
+      { "name": "Rahul Kumar", "relation": "Son", "share": 100 }
+    ],
+    "claim_status": "not_started",
+    "source_doc": "hdfc_mf_statement.pdf"
+  }
+]

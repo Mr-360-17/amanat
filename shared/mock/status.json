@@ -1,0 +1,15 @@
+{
+  "state": "ACTIVE",
+  "last_check_in": "2026-09-28T18:00:00Z",
+  "next_deadline": "2026-09-28T18:02:00Z",
+  "grace_ends": null,
+  "confirmations": 0,
+  "confirmations_required": 2,
+  "trusted_contacts": [
+    { "name": "Suresh Iyer", "relation": "Brother-in-law", "confirmed": false },
+    { "name": "Dr. Meena Rao", "relation": "Family doctor", "confirmed": false },
+    { "name": "Anil Shetty", "relation": "Friend", "confirmed": false }
+  ],
+  "vault_hash": "0x3f1c...a9e2",
+  "source": "mock"
+}
