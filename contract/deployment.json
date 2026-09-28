@@ -1,0 +1,25 @@
+{
+  "network": "mst",
+  "chainId": 91562037,
+  "address": "0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D",
+  "deployBlock": 5787822,
+  "deployTxHash": "0xd5cfbee59852621d888bc6a186db8b3135040b954504d28556ee0a9600385471",
+  "deployedAt": "2026-09-28T18:05:38.130Z",
+  "owner": "0x8366ca68E48eaEf0786C69CA1D67a94399FFD722",
+  "keeper": "0xa4e52e959F0aa6D79fb4eBFC5076bd0Bf85F8432",
+  "trustedContacts": [
+    "0xd4C71760fd8992C562201C71ffe1aC6F7B44ccc0",
+    "0xf200e1702D4f8Aca69E20160f3253dBb855A7824",
+    "0x06DcD617f13e15ECb5f626f888552c772493e57f"
+  ],
+  "beneficiaries": [
+    "0xE0D772115894404a43d63254c870941fe0bFcAca",
+    "0x4F54ded5205C7020f387e85df2109Fc7ee9Be7A1"
+  ],
+  "params": {
+    "demoMode": true,
+    "checkInPeriod": 30,
+    "gracePeriod": 30,
+    "releaseDelay": 15
+  }
+}

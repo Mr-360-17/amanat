@@ -1,0 +1,42 @@
+{
+  "name": "legacyvault-blockchain",
+  "version": "1.0.0",
+  "description": "LegacyVault - on-chain dead-man's-switch with an autonomous keeper (MST Testnet)",
+  "private": true,
+  "license": "ISC",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "wallets": "tsx scripts/generate-wallets.ts",
+    "fund": "tsx scripts/fund-wallets.ts",
+    "node:local": "hardhat node",
+    "setup:local": "tsx scripts/local-setup.ts",
+    "deploy": "hardhat compile && tsx scripts/deploy.ts",
+    "abi": "tsx scripts/export-abi.ts",
+    "vault": "tsx scripts/interact.ts",
+    "agent": "tsx agent/server.ts",
+    "frontend": "npm --prefix frontend run dev",
+    "scenario:release": "tsx scripts/scenario.ts release",
+    "scenario:recovery": "tsx scripts/scenario.ts recovery",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.0",
+    "express": "^4.22.3"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/node": "^20.14.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

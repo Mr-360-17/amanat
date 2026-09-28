@@ -1,0 +1,21 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Hardhat build output
+artifacts/
+cache/
+typechain-types/
+coverage/
+
+# Keeper runtime data (heartbeat, notifications)
+agent/data/
+
+# Build output
+dist/
+frontend/dist/
