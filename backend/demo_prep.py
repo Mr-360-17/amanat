@@ -105,9 +105,14 @@ def main() -> int:
         print(f"{tag} {name}: {detail}")
 
     print()
-    httpx.post(f"{args.url}/demo/reset", timeout=10).raise_for_status()
+    auth = {"X-Amanat-Key": config.owner_key()}
+    r = httpx.post(f"{args.url}/demo/reset", headers=auth, timeout=10)
+    if r.status_code == 401:
+        print(f"{BAD} server rejected the owner key: it was started with a different AMANAT_OWNER_KEY")
+        return 1
+    r.raise_for_status()
     if args.loaded:
-        s = httpx.post(f"{args.url}/demo/load", timeout=10).json()
+        s = httpx.post(f"{args.url}/demo/load", headers=auth, timeout=10).json()
         print(f"{OK} reset + loaded Ramesh: {s['asset_count']} assets, Rs {inr(s['total_value'])}, "
               f"circle {s['circle']['accepted']}/{s['circle']['total']} accepted")
     else:

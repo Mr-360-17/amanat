@@ -101,6 +101,25 @@ def test_declined_contact_is_flagged_and_can_be_reinvited(demo):
     assert client.post(f"/contacts/{demo[0]['id']}/resend").status_code == 200
 
 
+def test_contact_links_work_without_owner_key(demo):
+    from test_api import stranger
+    tok = _token(demo[0]["invite_url"])
+    assert stranger.get(f"/circle/{tok}").status_code == 200
+    assert stranger.post(f"/circle/{tok}/accept").json()["card"] is not None
+    assert stranger.post(f"/circle/{tok}/ping").status_code == 200
+    # ...but a contact can't reach owner routes
+    assert stranger.post("/circle/ping-all").status_code == 401
+
+
+def test_contact_confirms_from_own_link_only_after_accepting(demo):
+    from test_api import stranger
+    tok = _token(demo[1]["invite_url"])
+    assert stranger.post(f"/circle/{tok}/confirm").status_code == 403
+    stranger.post(f"/circle/{tok}/accept")
+    assert stranger.post(f"/circle/{tok}/confirm").status_code == 200  # forwarded to keeper
+    assert stranger.post("/circle/bogus-token/confirm").status_code == 404
+
+
 def test_bad_token_is_rejected():
     assert client.get("/circle/not-a-real-token").status_code == 404
     assert client.post("/circle/not-a-real-token/accept").status_code == 404
