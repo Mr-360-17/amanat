@@ -21,6 +21,7 @@ import {
 } from "./config";
 import { startKeeper, storeVaultHash, ContractRefused } from "./keeper";
 import { latestNotifications, readHeartbeat, notify } from "./notifier";
+import { startAdapter } from "./adapter";
 
 const app = express();
 app.use(cors({ origin: FRONTEND_ORIGINS }));
@@ -86,4 +87,5 @@ app.post("/vault/hash", async (req, res) => {
 app.listen(API_PORT, () => {
   console.log(`[api] listening on http://localhost:${API_PORT}  (CORS: ${FRONTEND_ORIGINS.join(", ")})`);
   startKeeper();
+  startAdapter(); // interface for the Amanat team backend (AMANAT_KEEPER_URL)
 });

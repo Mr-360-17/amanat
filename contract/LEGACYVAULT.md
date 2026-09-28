@@ -181,6 +181,25 @@ is sent as **legacy type 0 with an explicit gasPrice** (1 gwei).
 | `GET /contract` | Address, chainId, RPC, explorer, deploy block, ABI |
 | `POST /vault/hash` | `{ vaultHash }` + `x-api-key`. The keeper stores it on-chain. See [docs/VAULT_HASH_API.md](docs/VAULT_HASH_API.md). |
 
+### Amanat backend adapter (port 8100)
+
+`npm run agent` also starts an adapter that speaks the interface in `contract/README.md`, so the team
+backend can use it: set `AMANAT_KEEPER_URL=http://127.0.0.1:8100` in `backend/.env`. Tested against
+the real backend: `/status` is served from the keeper, and `/demo/load` puts the vault hash on MST.
+
+| Route | What happens |
+|---|---|
+| `GET /status` | Live on-chain state in the `shared/mock/status.json` shape, plus extras (`round`, `contract`, `release_at`) |
+| `GET /txlog` | All contract events, oldest first, in the `shared/mock/txlog.json` shape with MSTScan links. Reminders appear as `ReminderSent` with `tx_hash: null`. |
+| `POST /vault-hash`, `/activate` | Keeper stores the hash on-chain. Skipped if it's already the current hash. |
+| `POST /contacts`, `/contact-status` | Names and relations saved **off-chain** (`agent/data/circle.json`, no phone numbers) for display. On-chain wallets unchanged. |
+| `POST /beneficiaries` | Acknowledged. Names and shares never go on-chain. |
+| `POST /checkin`, `/confirm` | **501**: they need the owner's or a contact's signature. Keeper-side signing is not enabled. |
+| `POST /demo/miss-deadline` | No transaction (a real chain's clock can't be skipped). With demo timers, grace starts automatically within about 35 s. |
+
+**Security:** the backend sends no auth header, so the adapter only accepts `127.0.0.1` by default. If the backend
+runs on another laptop, set `ADAPTER_HOST=0.0.0.0` and `ADAPTER_ALLOWED_IPS=<backend laptop IP>`.
+
 ## Deployment
 
 | Network | Contract | Deploy block | Explorer |
