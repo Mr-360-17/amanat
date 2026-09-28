@@ -40,6 +40,10 @@ export const api = (path, opts = {}) =>
 | 10 **Invite page** (mobile, route `/circle/:token`) | `GET /circle/:token`. While pending it returns `message` + `card: null` → show **Accept / Decline** buttons → `POST /circle/:token/accept` or `/decline`. The response then includes the card |
 | 11 **Emergency card** (mobile, same route once accepted) | `card.owner`, `card.family`, `card.doctor`, `card.circle` (the viewer has `you: true`), `card.assets_held_at` (where, **never amounts**), `card.note`, `card.what_to_do[]`, `card.privacy_note` |
 | 12 Reachability check | Owner: `POST /circle/ping-all`. Contact: "I'm still reachable" button → `POST /circle/:token/ping` |
+| 13 **"Something happened" button** (contact's phone, on the emergency card) | `POST /circle/:token/emergency` `{"reason": "Admitted to hospital"}`. Only accepted contacts; 409 if one is already open |
+| 14 **Confirm emergency** (other contact's phone, opened from their SMS) | `POST /circle/:token/emergency/confirm`. At 2 of 3 the status becomes `active` |
+| 15 **Emergency access** (contact's phone) | `GET /circle/:token` now also returns `emergency` (status, reason, who confirmed) and `emergency_access` (only when active: `health_cover[]`, `medical{allergies,conditions,medications}`, `blood_group`, `doctor`, `note`). Mock: `shared/mock/circle_emergency.json` |
+| 16 **Owner alert** (Ramesh's dashboard) | `GET /summary`: the first warning is `emergency_reported` / `emergency_active`. **"I'm OK"** button → `POST /emergency/cancel`. `POST /checkin` also closes it. `GET /emergency` returns the status |
 | Phone mock-up | `GET /notifications`: simulated SMS outbox, newest first. Show the latest message on the "phone" in the demo; its `link` opens screen 10 |
 | 8 Transaction log | `GET /txlog` |
 | 9 Beneficiary view | `GET /beneficiary/Sunita Kumar`. **Before release:** `released: false`, `message`, empty `assets`, so show a locked screen. **After release:** her assets with `your_share`, `your_value` and full account numbers; `GET /claim/A3` for each checklist. To build this screen before Pratham's keeper exists, call `POST /demo/simulate-release` first |

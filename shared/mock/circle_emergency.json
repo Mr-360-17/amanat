@@ -1,0 +1,30 @@
+{
+  "contact": { "name": "Suresh Iyer", "relation": "Brother-in-law", "status": "accepted" },
+  "owner_name": "Ramesh Kumar",
+  "reachability": "ok",
+  "card": "(same as circle_card.json)",
+  "emergency": {
+    "status": "active",
+    "reason": "Admitted to hospital after a fall",
+    "reported_by": "Suresh Iyer",
+    "reported_at": "2026-09-29T02:10:00Z",
+    "confirmed_by": ["Suresh Iyer", "Dr. Meena Rao"],
+    "confirmations": 2,
+    "confirmations_required": 2,
+    "activated_at": "2026-09-29T02:14:00Z",
+    "closed_at": null
+  },
+  "emergency_access": {
+    "health_cover": [
+      { "insurer": "Star Health (SAMPLE)", "policy_number": "SH-0000-000000", "helpline": "1800-000-0000", "sum_insured": 500000 }
+    ],
+    "medical": {
+      "allergies": "Penicillin",
+      "conditions": "Type 2 diabetes",
+      "medications": "Metformin 500 mg twice daily"
+    },
+    "blood_group": "B+",
+    "doctor": { "name": "Dr. Meena Rao", "phone": "+91 90000 00002" },
+    "note": "Emergency access covers health and medical details only. Bank accounts, deposits, investments and life insurance stay locked."
+  }
+}

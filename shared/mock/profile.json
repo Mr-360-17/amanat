@@ -15,5 +15,16 @@
     "doctor": true,
     "institutions": true,
     "asset_types": true
+  },
+  "health_cover": {
+    "insurer": "Star Health (SAMPLE)",
+    "policy_number": "SH-0000-000000",
+    "helpline": "1800-000-0000",
+    "sum_insured": 500000
+  },
+  "medical": {
+    "allergies": "Penicillin",
+    "conditions": "Type 2 diabetes",
+    "medications": "Metformin 500 mg twice daily"
   }
 }

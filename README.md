@@ -12,6 +12,7 @@ When someone dies, their family often doesn't know which bank accounts, FDs, ins
 2. **Emergency card.** Once accepted, a contact can always open Ramesh's card: phone, address, family, doctor, the other contacts, and **where** his assets are held. **Never amounts or account numbers**; those are released only after 2 of 3 contacts confirm. Ramesh chooses what the card shows.
 3. **Kept fresh.** Periodic "still reachable?" checks. Anyone silent, unaccepted or declined is flagged on Ramesh's dashboard, just like a missing nominee.
 4. **Only accepted contacts can confirm a death.** A stranger with a phone number can't trigger a release.
+5. **Emergency mode ("something happens", short of death).** An accepted contact reports it, for example "admitted to hospital". Ramesh is alerted at once and can cancel by checking in. If a second contact confirms (2 of 3), the circle gets **only** his health cover, allergies, conditions, medications, blood group and doctor, so they can act at the hospital. Bank accounts, deposits, investments and life insurance stay locked, and the family's vault release still needs the separate on-chain death confirmation. An unconfirmed report expires after 48 hours.
 
 ## Structure
 

@@ -40,6 +40,9 @@ LLM_TIME_BUDGET_S = float(os.getenv("AMANAT_LLM_TIME_BUDGET_S", "45"))
 # Trusted contacts who haven't answered a reachability check for this many days are flagged.
 REACHABILITY_DAYS = int(os.getenv("AMANAT_REACHABILITY_DAYS", "180"))
 
+# An emergency report that no second contact confirms expires after this many hours.
+EMERGENCY_REPORT_HOURS = float(os.getenv("AMANAT_EMERGENCY_REPORT_HOURS", "48"))
+
 # Base URL of the frontend page a trusted contact opens from their invite message.
 INVITE_BASE_URL = os.getenv("AMANAT_INVITE_BASE_URL", "http://localhost:5173/circle").rstrip("/")
 

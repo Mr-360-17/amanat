@@ -131,7 +131,9 @@ class Store:
             "missing_nominee": sum(1 for a in assets if not a.get("nominee")),
             "circle": {"total": len(self._state.get("contacts", [])),
                        "accepted": circle.accepted_count(self._state), "required": 2},
-            "warnings": self.warnings() + circle.warnings(self._state),
+            # Emergencies first: the owner must see "are you OK?" before anything else.
+            "warnings": sorted(self.warnings() + circle.warnings(self._state),
+                               key=lambda w: not w["type"].startswith("emergency_")),
             "vault_hash": self.vault_hash,
         }
 

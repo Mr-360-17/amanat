@@ -21,7 +21,8 @@ app = FastAPI(title="Amanat API", version="0.1.0",
 # Default-deny: every route needs the owner key except these. Trusted-contact routes are
 # public because the unguessable token in the URL is their credential.
 PUBLIC_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
-CONTACT_PATH = re.compile(r"^/circle/(?!ping-all$)[A-Za-z0-9_-]+(/(accept|decline|ping|confirm))?$")
+CONTACT_PATH = re.compile(
+    r"^/circle/(?!ping-all$)[A-Za-z0-9_-]+(/(accept|decline|ping|confirm|emergency(/confirm)?))?$")
 OWNER_KEY = config.owner_key()
 
 
@@ -69,6 +70,19 @@ class ShareSettings(BaseModel):
     asset_types: bool = True
 
 
+class HealthCover(BaseModel):
+    insurer: str
+    policy_number: str | None = None
+    helpline: str | None = None
+    sum_insured: float | None = None
+
+
+class Medical(BaseModel):
+    allergies: str | None = None
+    conditions: str | None = None
+    medications: str | None = None
+
+
 class Profile(BaseModel):
     name: str | None = None
     phone: str | None = None
@@ -78,6 +92,13 @@ class Profile(BaseModel):
     doctor: Person | None = None
     note: str | None = None
     share: ShareSettings = ShareSettings()
+    # Shown to the circle ONLY while an emergency is active (2 of 3 confirmed).
+    health_cover: HealthCover | None = None
+    medical: Medical | None = None
+
+
+class EmergencyReport(BaseModel):
+    reason: str = Field(default="In hospital / unreachable", max_length=200)
 
 
 class ContactsRequest(BaseModel):
@@ -339,7 +360,10 @@ def activate():
 
 @app.post("/checkin")
 def checkin():
-    return bridges.keeper_action("/checkin", {})
+    # A check-in also means "I'm OK": it closes any open emergency report locally,
+    # even if the keeper is offline.
+    emergency = store.mutate(circle.close_emergency)
+    return {**bridges.keeper_action("/checkin", {}), "emergency": emergency}
 
 
 def _confirm_as(c: dict) -> dict:
@@ -356,6 +380,40 @@ def confirm(req: ConfirmRequest):
     if req.contact_index >= len(contacts):
         raise HTTPException(404, "no such trusted contact")
     return _confirm_as(contacts[req.contact_index])
+
+
+def _emergency_action(fn):
+    try:
+        return store.mutate(fn)
+    except KeyError:
+        raise HTTPException(404, "This invite link is not valid")
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/circle/{token}/emergency")
+def circle_report_emergency(token: str, req: EmergencyReport = EmergencyReport()):
+    """An accepted contact reports that something has happened to the owner (not death)."""
+    return _emergency_action(lambda s: circle.report_emergency(s, token, req.reason))
+
+
+@app.post("/circle/{token}/emergency/confirm")
+def circle_confirm_emergency(token: str):
+    """A second accepted contact agrees: emergency access (health + medical only) opens."""
+    return _emergency_action(lambda s: circle.confirm_emergency(s, token))
+
+
+@app.get("/emergency")
+def emergency_status():
+    return store.read(circle.emergency_view)
+
+
+@app.post("/emergency/cancel")
+def emergency_cancel():
+    """Owner: 'I'm OK'. Cancels a report or ends an active emergency."""
+    return store.mutate(circle.close_emergency)
 
 
 @app.post("/circle/{token}/confirm")

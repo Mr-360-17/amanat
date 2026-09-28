@@ -35,5 +35,17 @@
       "After release, the family receives the full asset details and a step-by-step claim guide."
     ],
     "privacy_note": "You can see where Ramesh's assets are held, but not the amounts or account numbers. Those are released to the family only after 2 of 3 trusted contacts confirm."
-  }
+  },
+  "emergency": {
+    "status": "none",
+    "reason": null,
+    "reported_by": null,
+    "reported_at": null,
+    "confirmed_by": [],
+    "confirmations": 0,
+    "confirmations_required": 2,
+    "activated_at": null,
+    "closed_at": null
+  },
+  "emergency_access": null
 }
