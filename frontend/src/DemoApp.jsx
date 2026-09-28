@@ -23,7 +23,10 @@ function KeyGate({ done }) {
   const [err, setErr] = useState('');
   return <div className="unlock"><form className="unlock-card" onSubmit={async e => {
     e.preventDefault(); setKey(k.trim());
-    try { await api('/contacts'); done(); } catch (x) { setKey(''); setErr(x.message); }
+    try { await api('/contacts'); done(); } catch (x) {
+      setKey('');
+      setErr(x.status === 401 ? 'That key is not right. Use the "Owner key" line printed by run_lan.ps1.' : x.message);
+    }
   }}><KeyRound className="unlock-icon" /><h1>Presenter</h1><p>Enter the owner key to run the demo.</p>
     <input className="field" type="password" value={k} onChange={e => setK(e.target.value)} placeholder="Owner key" />
     {err && <div className="form-error">{err}</div>}<button className="primary">Continue</button></form></div>;
