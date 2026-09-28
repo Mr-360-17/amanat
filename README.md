@@ -4,6 +4,15 @@
 
 When someone dies, their family often doesn't know which bank accounts, FDs, insurance policies, PF or investments they had, so the money goes unclaimed. Amanat reads your financial documents with AI, builds an encrypted map of your assets, and uses an autonomous on-chain switch to release that map to your family, with a step-by-step claim guide, only once your death is confirmed by 2 of 3 trusted contacts.
 
+## Trusted Circle
+
+*Added after mentor feedback: the trusted people should know before anything happens.*
+
+1. **Invited on day one.** When Ramesh adds a trusted contact, they get a message right away and must **accept**. That proves the number works and that they agree to the role.
+2. **Emergency card.** Once accepted, a contact can always open Ramesh's card: phone, address, family, doctor, the other contacts, and **where** his assets are held. **Never amounts or account numbers**; those are released only after 2 of 3 contacts confirm. Ramesh chooses what the card shows.
+3. **Kept fresh.** Periodic "still reachable?" checks. Anyone silent, unaccepted or declined is flagged on Ramesh's dashboard, just like a missing nominee.
+4. **Only accepted contacts can confirm a death.** A stranger with a phone number can't trigger a release.
+
 ## Structure
 
 | Folder | Owner | What |
@@ -72,6 +81,6 @@ API docs: http://localhost:8000/docs · Tests: `..\.venv\Scripts\python -m pytes
 1. Text is pulled out of the PDF with pypdf. A scanned PDF with no text layer is sent to Claude or Gemini as a PDF.
 2. The configured LLM (`AMANAT_LLM`) returns assets in a strict JSON schema.
 3. Entries with neither an account number nor a value are dropped as unverifiable, and names are tidied.
-4. If the LLM fails, the **rule-based extractor** takes over, so the demo never dead-ends.
-5. Results are cached per file. Upload the demo PDFs once during rehearsal, and the live demo works even if the API or Wi-Fi fails.
+4. If a Gemini model is busy (503/429) or retired (404), the backend retries once and then tries the backup models (`AMANAT_GEMINI_FALLBACKS`). If nothing answers within `AMANAT_LLM_TIME_BUDGET_S` (45 s), the **rule-based extractor** takes over, so the demo never dead-ends.
+5. Results are cached per file. Run `python dev_samples\check_extraction.py` during rehearsal: it checks all 5 PDFs and fills the cache, so the live demo works even if the API or Wi-Fi fails.
 6. Assets are stored in an AES-256-GCM encrypted vault. Only its SHA-256 hash goes on-chain. The API always shows masked account numbers.

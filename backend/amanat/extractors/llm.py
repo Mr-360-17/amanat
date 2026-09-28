@@ -3,6 +3,7 @@ Every provider returns the same list[dict] shape as the rule-based extractor."""
 import base64
 import json
 import os
+import time
 
 import httpx
 
@@ -134,14 +135,37 @@ def extract_gemini(text: str, pdf_bytes: bytes | None = None) -> list[dict]:
         "generationConfig": {"responseMimeType": "application/json",
                              "responseJsonSchema": SCHEMA},
     }
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{config.GEMINI_MODEL}:generateContent"
-    try:
-        r = httpx.post(url, json=body, headers={"x-goog-api-key": key}, timeout=60)
-        r.raise_for_status()
-        out = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except (httpx.HTTPError, KeyError, IndexError) as e:
-        raise ExtractionError(f"Gemini call failed: {e}") from e
-    return _parse(out)
+    # Busy (429/503) or retired (404) models are common on the free tier: retry once,
+    # then move down the model list. Other errors (bad key, bad request) stop at once.
+    # The whole search is capped by LLM_TIME_BUDGET_S so a busy API can't stall the UI.
+    errors = []
+    deadline = time.monotonic() + config.LLM_TIME_BUDGET_S
+    for model in [config.GEMINI_MODEL] + config.GEMINI_FALLBACK_MODELS:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        for attempt in range(2):
+            remaining = deadline - time.monotonic()
+            if remaining < 3:
+                raise ExtractionError(f"Gemini gave no answer within {config.LLM_TIME_BUDGET_S:g}s: "
+                                      + "; ".join(errors or ["timed out"]))
+            try:
+                r = httpx.post(url, json=body, headers={"x-goog-api-key": key}, timeout=remaining)
+            except httpx.HTTPError as e:
+                errors.append(f"{model}: {type(e).__name__}")
+                break
+            if r.status_code in (429, 503) and attempt == 0:
+                time.sleep(2)
+                continue
+            if r.status_code in (404, 429, 503):
+                errors.append(f"{model}: HTTP {r.status_code}")
+                break
+            if r.status_code != 200:
+                raise ExtractionError(f"Gemini {model} HTTP {r.status_code}: {r.text[:200]}")
+            try:
+                out = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError, ValueError) as e:
+                raise ExtractionError(f"Gemini {model} returned no text") from e
+            return _parse(out)
+    raise ExtractionError("all Gemini models busy/unavailable: " + "; ".join(errors))
 
 
 # ---------- Ollama (local, offline) ----------

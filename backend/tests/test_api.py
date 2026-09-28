@@ -94,10 +94,13 @@ def test_vault_hash_changes_on_every_change():
     assert client.get("/summary").json()["vault_hash"] != h1
 
 
-def test_contacts_need_exactly_three():
-    two = [{"name": "A", "relation": "x"}, {"name": "B", "relation": "y"}]
+def test_contacts_need_exactly_three_with_phones():
+    two = [{"name": "A", "relation": "x", "phone": "+91 90000 00001"},
+           {"name": "B", "relation": "y", "phone": "+91 90000 00002"}]
     assert client.post("/contacts", json={"contacts": two}).status_code == 422
-    three = two + [{"name": "C", "relation": "z"}]
+    no_phone = two + [{"name": "C", "relation": "z"}]
+    assert client.post("/contacts", json={"contacts": no_phone}).status_code == 422
+    three = two + [{"name": "C", "relation": "z", "phone": "+91 90000 00003"}]
     r = client.post("/contacts", json={"contacts": three})
     assert r.status_code == 200 and r.json()["required"] == 2
 

@@ -27,9 +27,21 @@ CACHE_DIR = Path(os.getenv("AMANAT_CACHE_DIR", BACKEND_DIR / "cache"))
 LLM_PROVIDER = os.getenv("AMANAT_LLM", "auto").lower()
 CLAUDE_MODEL = os.getenv("AMANAT_CLAUDE_MODEL", "claude-opus-5")
 CLAUDE_EFFORT = os.getenv("AMANAT_CLAUDE_EFFORT", "low")
-GEMINI_MODEL = os.getenv("AMANAT_GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("AMANAT_GEMINI_MODEL", "gemini-3.8-flash")
+# Tried in order when the main model is busy or unavailable.
+GEMINI_FALLBACK_MODELS = [m.strip() for m in os.getenv(
+    "AMANAT_GEMINI_FALLBACKS", "gemini-3.7-flash,gemini-3.5-flash,gemini-flash-latest").split(",") if m.strip()]
 OLLAMA_URL = os.getenv("AMANAT_OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("AMANAT_OLLAMA_MODEL", "llama3.2:1b")
+
+# Max seconds to spend on one document's LLM call(s) before using the rule-based extractor.
+LLM_TIME_BUDGET_S = float(os.getenv("AMANAT_LLM_TIME_BUDGET_S", "45"))
+
+# Trusted contacts who haven't answered a reachability check for this many days are flagged.
+REACHABILITY_DAYS = int(os.getenv("AMANAT_REACHABILITY_DAYS", "180"))
+
+# Base URL of the frontend page a trusted contact opens from their invite message.
+INVITE_BASE_URL = os.getenv("AMANAT_INVITE_BASE_URL", "http://localhost:5173/circle").rstrip("/")
 
 # Re-use extraction results for a file we've already seen (demo safety net).
 USE_CACHE = os.getenv("AMANAT_USE_CACHE", "1") == "1"

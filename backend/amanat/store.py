@@ -3,10 +3,10 @@ import json
 import threading
 from collections import Counter
 
-from . import config, vault
+from . import circle, config, vault
 from .schema import Asset, Beneficiary, canonical_asset_type, category, mask_account
 
-_EMPTY = {"assets": [], "contacts": []}
+_EMPTY = {"assets": [], "contacts": [], "profile": {}, "notifications": []}
 
 
 class Store:
@@ -19,6 +19,17 @@ class Store:
     def _commit(self) -> str:
         self.vault_hash = vault.seal(self._state)
         return self.vault_hash
+
+    def mutate(self, fn):
+        """Run fn(state) under the lock, then re-seal the vault. Returns fn's result."""
+        with self._lock:
+            result = fn(self._state)
+            self._commit()
+            return result
+
+    def read(self, fn):
+        with self._lock:
+            return fn(self._state)
 
     # ---- assets ----
     def _next_id(self) -> str:
@@ -96,16 +107,6 @@ class Store:
                     return self._public(a)
         raise KeyError(asset_id)
 
-    # ---- trusted contacts ----
-    def set_contacts(self, contacts: list[dict]) -> list[dict]:
-        with self._lock:
-            self._state["contacts"] = contacts
-            self._commit()
-        return contacts
-
-    def contacts(self) -> list[dict]:
-        return list(self._state["contacts"])
-
     # ---- dashboard ----
     def warnings(self) -> list[dict]:
         out = []
@@ -128,7 +129,9 @@ class Store:
             "asset_count": len(assets),
             "counts": {k: counts.get(k, 0) for k in ("Bank", "Insurance", "PF", "Investments", "Other")},
             "missing_nominee": sum(1 for a in assets if not a.get("nominee")),
-            "warnings": self.warnings(),
+            "circle": {"total": len(self._state.get("contacts", [])),
+                       "accepted": circle.accepted_count(self._state), "required": 2},
+            "warnings": self.warnings() + circle.warnings(self._state),
             "vault_hash": self.vault_hash,
         }
 
@@ -140,12 +143,14 @@ class Store:
             self.vault_hash = None
 
     def load_demo(self) -> dict:
-        assets = json.loads((config.MOCK_DIR / "assets.json").read_text(encoding="utf-8"))
-        status = json.loads((config.MOCK_DIR / "status.json").read_text(encoding="utf-8"))
+        def mock(name):
+            return json.loads((config.MOCK_DIR / name).read_text(encoding="utf-8"))
+
         with self._lock:
-            self._state = {
-                "assets": assets,
-                "contacts": [{k: c[k] for k in ("name", "relation")} for c in status["trusted_contacts"]],
-            }
+            self._state = json.loads(json.dumps(_EMPTY))
+            self._state["assets"] = mock("assets.json")
+            circle.set_profile(self._state, mock("profile.json"))
+            # Contacts start as "pending" so the demo can show them accepting live.
+            circle.set_contacts(self._state, mock("contacts.json"))
             self._commit()
         return self.summary()

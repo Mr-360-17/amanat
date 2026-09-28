@@ -1,0 +1,39 @@
+{
+  "contact": { "name": "Suresh Iyer", "relation": "Brother-in-law", "status": "accepted" },
+  "owner_name": "Ramesh Kumar",
+  "reachability": "ok",
+  "card": {
+    "owner": {
+      "name": "Ramesh Kumar",
+      "phone": "+91 90000 00000",
+      "address": "12, 4th Cross, Jayanagar, Bengaluru 560011",
+      "blood_group": "B+"
+    },
+    "family": [
+      { "name": "Sunita Kumar", "relation": "Wife", "phone": "+91 90000 00010" },
+      { "name": "Rahul Kumar", "relation": "Son", "phone": "+91 90000 00011" }
+    ],
+    "doctor": { "name": "Dr. Meena Rao", "phone": "+91 90000 00002" },
+    "circle": [
+      { "name": "Suresh Iyer", "relation": "Brother-in-law", "phone": "+91 90000 00001", "status": "accepted", "you": true },
+      { "name": "Dr. Meena Rao", "relation": "Family doctor", "phone": "+91 90000 00002", "status": "accepted", "you": false },
+      { "name": "Anil Shetty", "relation": "Friend", "phone": "+91 90000 00003", "status": "pending", "you": false }
+    ],
+    "assets_held_at": [
+      { "institution": "SBI", "asset_type": "Savings Account" },
+      { "institution": "SBI", "asset_type": "Fixed Deposit" },
+      { "institution": "LIC", "asset_type": "Life Insurance" },
+      { "institution": "EPFO", "asset_type": "EPF" },
+      { "institution": "HDFC Mutual Fund", "asset_type": "Mutual Fund" }
+    ],
+    "asset_count": 5,
+    "note": "Important papers are in the steel almirah, top shelf, blue folder.",
+    "what_to_do": [
+      "If Ramesh is unwell or can't be reached, call the other people in this circle first.",
+      "Amanat will only ask you to confirm if Ramesh misses their regular check-ins. You'll get a message.",
+      "Confirm only when you are certain. 2 of the 3 people in this circle must confirm before anything is released.",
+      "After release, the family receives the full asset details and a step-by-step claim guide."
+    ],
+    "privacy_note": "You can see where Ramesh's assets are held, but not the amounts or account numbers. Those are released to the family only after 2 of 3 trusted contacts confirm."
+  }
+}

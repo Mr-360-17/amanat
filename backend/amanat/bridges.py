@@ -9,7 +9,8 @@ Keeper agent (Pratham): an HTTP service at AMANAT_KEEPER_URL exposing
     GET  /status          -> same shape as shared/mock/status.json
     GET  /txlog           -> same shape as shared/mock/txlog.json
     POST /vault-hash      {"hash": "0x..."}
-    POST /contacts        {"contacts": [{"name", "relation", "wallet"?}]}
+    POST /contacts        {"contacts": [{"index", "name", "relation", "phone", "wallet", "status"}]}
+    POST /contact-status  {"contact_index": 0-2, "status": "accepted" | "declined"}
     POST /beneficiaries   {"asset_id", "beneficiaries": [...]}
     POST /activate, /checkin, /confirm {"contact_index": 0-2}, /demo/miss-deadline
 Until it is running, status/txlog come from shared/mock and actions are logged locally.
@@ -90,7 +91,16 @@ def push_vault_hash(vault_hash: str) -> dict:
 
 
 def push_contacts(contacts: list[dict]) -> dict:
-    return _post("/contacts", {"contacts": contacts}, "TrustedContactsSet", f"{len(contacts)} trusted contacts")
+    # Invite links carry the contact's secret token: never send them off this machine.
+    safe = [{k: c.get(k) for k in ("index", "name", "relation", "phone", "wallet", "status")}
+            for c in contacts]
+    return _post("/contacts", {"contacts": safe}, "TrustedContactsSet", f"{len(safe)} trusted contacts")
+
+
+def push_contact_status(index: int, status: str) -> dict:
+    event = "ContactAccepted" if status == "accepted" else "ContactDeclined"
+    return _post("/contact-status", {"contact_index": index, "status": status},
+                 event, f"Trusted contact #{index + 1} {status}")
 
 
 def push_beneficiaries(asset_id: str, beneficiaries: list[dict]) -> dict:

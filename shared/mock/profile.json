@@ -1,0 +1,19 @@
+{
+  "name": "Ramesh Kumar",
+  "phone": "+91 90000 00000",
+  "address": "12, 4th Cross, Jayanagar, Bengaluru 560011",
+  "blood_group": "B+",
+  "family": [
+    { "name": "Sunita Kumar", "relation": "Wife", "phone": "+91 90000 00010" },
+    { "name": "Rahul Kumar", "relation": "Son", "phone": "+91 90000 00011" }
+  ],
+  "doctor": { "name": "Dr. Meena Rao", "phone": "+91 90000 00002" },
+  "note": "Important papers are in the steel almirah, top shelf, blue folder.",
+  "share": {
+    "address": true,
+    "family": true,
+    "doctor": true,
+    "institutions": true,
+    "asset_types": true
+  }
+}

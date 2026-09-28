@@ -3,7 +3,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from amanat import bridges, config
+from amanat import bridges, circle, config
 from amanat.extractors import extract_document
 from amanat.schema import Beneficiary
 from amanat.store import Store
@@ -23,10 +23,35 @@ class BeneficiaryRequest(BaseModel):
 
 
 class Contact(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     relation: str
-    phone: str | None = None
+    phone: str = Field(min_length=6)  # needed so they can be told before anything happens
     wallet: str | None = None
+
+
+class Person(BaseModel):
+    name: str
+    relation: str | None = None
+    phone: str | None = None
+
+
+class ShareSettings(BaseModel):
+    address: bool = True
+    family: bool = True
+    doctor: bool = True
+    institutions: bool = True
+    asset_types: bool = True
+
+
+class Profile(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    blood_group: str | None = None
+    family: list[Person] = []
+    doctor: Person | None = None
+    note: str | None = None
+    share: ShareSettings = ShareSettings()
 
 
 class ContactsRequest(BaseModel):
@@ -106,17 +131,103 @@ def set_beneficiaries(req: BeneficiaryRequest):
     return {"asset": updated, "chain": chain}
 
 
+# ---- trusted circle (owner side) ----
+
+def _circle_view(state: dict) -> dict:
+    return {"contacts": [circle.owner_view(c) for c in state.get("contacts", [])],
+            "accepted": circle.accepted_count(state), "required": 2}
+
+
 @app.post("/contacts")
 def set_contacts(req: ContactsRequest):
-    contacts = store.set_contacts([c.model_dump() for c in req.contacts])
-    chain = bridges.push_contacts(contacts)
+    sent = store.mutate(lambda s: circle.set_contacts(s, [c.model_dump() for c in req.contacts]))
+    view = store.read(_circle_view)
+    chain = bridges.push_contacts(view["contacts"])
     _commit_hash()
-    return {"contacts": contacts, "required": 2, "chain": chain}
+    return {**view, "invites_sent": sent, "chain": chain}
 
 
 @app.get("/contacts")
 def get_contacts():
-    return {"contacts": store.contacts(), "required": 2}
+    return store.read(_circle_view)
+
+
+@app.post("/contacts/{contact_id}/resend")
+def resend_invite(contact_id: str):
+    try:
+        return store.mutate(lambda s: circle.resend_invite(s, contact_id))
+    except KeyError:
+        raise HTTPException(404, f"no contact {contact_id}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/circle/ping-all")
+def ping_all():
+    """Send accepted contacts a one-tap 'are you still reachable?' check."""
+    sent = store.mutate(circle.ping_all)
+    return {"sent": sent, **store.read(_circle_view)}
+
+
+@app.get("/notifications")
+def notifications():
+    """Simulated SMS outbox. The demo 'phone' screens read the latest message from here."""
+    return store.read(lambda s: list(reversed(s.get("notifications", []))))
+
+
+@app.get("/profile")
+def get_profile():
+    return store.read(circle.get_profile)
+
+
+@app.put("/profile")
+def put_profile(profile: Profile):
+    result = store.mutate(lambda s: circle.set_profile(s, profile.model_dump()))
+    _commit_hash()
+    return result
+
+
+# ---- trusted circle (contact side: opened from the invite link) ----
+
+def _by_token(fn, token: str):
+    try:
+        return store.mutate(lambda s: fn(s, token))
+    except KeyError:
+        raise HTTPException(404, "This invite link is not valid")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/circle/{token}")
+def circle_view(token: str):
+    try:
+        return store.read(lambda s: circle.invite_view(s, token))
+    except KeyError:
+        raise HTTPException(404, "This invite link is not valid")
+
+
+def _respond(token: str, accept: bool):
+    c = _by_token(lambda s, t: circle.respond(s, t, accept), token)
+    bridges.push_contact_status(c["index"], c["status"])
+    _commit_hash()
+    return store.read(lambda s: circle.invite_view(s, token))
+
+
+@app.post("/circle/{token}/accept")
+def circle_accept(token: str):
+    return _respond(token, True)
+
+
+@app.post("/circle/{token}/decline")
+def circle_decline(token: str):
+    return _respond(token, False)
+
+
+@app.post("/circle/{token}/ping")
+def circle_ping(token: str):
+    """Contact answers 'yes, still reachable'."""
+    _by_token(circle.answer_ping, token)
+    return store.read(lambda s: circle.invite_view(s, token))
 
 
 @app.get("/claim/{asset_id}")
@@ -177,6 +288,13 @@ def checkin():
 
 @app.post("/confirm")
 def confirm(req: ConfirmRequest):
+    contacts = store.read(lambda s: s.get("contacts", []))
+    if req.contact_index >= len(contacts):
+        raise HTTPException(404, "no such trusted contact")
+    c = contacts[req.contact_index]
+    if c["status"] != circle.ACCEPTED:
+        raise HTTPException(403, f"{c['name']} never accepted the trusted-contact role, "
+                                 "so they cannot confirm")
     return bridges.keeper_action("/confirm", req.model_dump())
 
 
