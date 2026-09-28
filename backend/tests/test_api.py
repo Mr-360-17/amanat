@@ -10,6 +10,7 @@ os.environ.update({
     "AMANAT_KEEPER_URL": "",
     "AMANAT_DATA_DIR": str(Path(_tmp) / "data"),
     "AMANAT_CACHE_DIR": str(Path(_tmp) / "cache"),
+    "AMANAT_OWNER_KEY": "test-owner-key",
 })
 BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
@@ -21,7 +22,8 @@ import app as app_module  # noqa: E402
 from amanat import vault  # noqa: E402
 
 PDFS = BACKEND / "dev_samples" / "pdfs"
-client = TestClient(app_module.app)
+client = TestClient(app_module.app, headers={"X-Amanat-Key": "test-owner-key"})
+stranger = TestClient(app_module.app)  # someone else on the venue Wi-Fi
 
 
 @pytest.fixture(autouse=True)
@@ -152,6 +154,61 @@ def test_keeper_offline_serves_mock_status_and_logs_locally():
     log = client.get("/txlog").json()
     assert log[-1]["event"] == "VaultHashStored" and log[-1]["tx_hash"] is None
     assert client.post("/checkin").json()["ok"] is False
+
+
+def test_stranger_without_owner_key_is_locked_out():
+    client.post("/demo/load")
+    for method, path in [("get", "/assets"), ("get", "/summary"), ("get", "/profile"),
+                         ("get", "/contacts"), ("get", "/notifications"), ("post", "/demo/reset"),
+                         ("post", "/circle/ping-all"), ("get", "/beneficiary/Sunita Kumar"),
+                         ("post", "/demo/simulate-release"), ("get", "/assets/A1")]:
+        assert getattr(stranger, method)(path).status_code == 401, path
+    wrong = TestClient(app_module.app, headers={"X-Amanat-Key": "guess"})
+    assert wrong.get("/assets").status_code == 401
+    # raw non-ASCII bytes must give 401, not crash the comparison
+    weird = TestClient(app_module.app, headers={"X-Amanat-Key": "ключ".encode("utf-8")})
+    assert weird.get("/assets").status_code == 401
+    assert client.get("/summary").json()["asset_count"] == 5  # reset was refused
+
+
+def test_public_pages_need_no_key():
+    for path in ("/", "/health", "/docs", "/openapi.json"):
+        assert stranger.get(path).status_code == 200, path
+
+
+def test_cors_preflight_and_401_carry_cors_headers():
+    pre = stranger.options("/assets", headers={"Origin": "http://localhost:5173",
+                                                "Access-Control-Request-Method": "GET",
+                                                "Access-Control-Request-Headers": "x-amanat-key"})
+    assert pre.status_code == 200
+    r = stranger.get("/assets", headers={"Origin": "http://localhost:5173"})
+    assert r.status_code == 401 and "access-control-allow-origin" in r.headers
+
+
+def test_upload_runs_files_in_parallel(monkeypatch):
+    import threading
+    import time as _t
+    from amanat.extractors import rules
+    running, peak, lock = [0], [0], threading.Lock()
+    real = rules.extract
+
+    def slow(text):
+        with lock:
+            running[0] += 1
+            peak[0] = max(peak[0], running[0])
+        _t.sleep(0.3)
+        with lock:
+            running[0] -= 1
+        return real(text)
+
+    monkeypatch.setattr(rules, "extract", slow)
+    t0 = _t.time()
+    r = _upload("sbi_fd_receipt.pdf", "lic_policy_bond.pdf", "epf_passbook.pdf")
+    assert r.status_code == 200 and len(r.json()["assets"]) == 3
+    assert peak[0] >= 2 and _t.time() - t0 < 0.8  # 3 x 0.3 s ran together, not 0.9 s in a row
+    # IDs still follow upload order
+    assert [a["source_doc"] for a in r.json()["assets"]] == [
+        "sbi_fd_receipt.pdf", "lic_policy_bond.pdf", "epf_passbook.pdf"]
 
 
 def test_demo_load_gives_agreed_dataset():

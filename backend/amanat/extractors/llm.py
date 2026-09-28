@@ -2,7 +2,6 @@
 Every provider returns the same list[dict] shape as the rule-based extractor."""
 import base64
 import json
-import os
 import time
 
 import httpx
@@ -120,9 +119,18 @@ def extract_claude(text: str, pdf_bytes: bytes | None = None) -> list[dict]:
 
 # ---------- Gemini ----------
 
+# Index of the key that last worked; the next call starts there (skips a known-throttled key).
+_good_key = 0
+
+
+def _is_bad_key(r) -> bool:
+    return r.status_code in (401, 403) or (r.status_code == 400 and "API key" in r.text)
+
+
 def extract_gemini(text: str, pdf_bytes: bytes | None = None) -> list[dict]:
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
+    global _good_key
+    keys = config.gemini_keys()
+    if not keys:
         raise ExtractionError("GEMINI_API_KEY not set")
     parts: list[dict] = [{"text": PROMPT}]
     if pdf_bytes is not None and not text:
@@ -135,36 +143,59 @@ def extract_gemini(text: str, pdf_bytes: bytes | None = None) -> list[dict]:
         "generationConfig": {"responseMimeType": "application/json",
                              "responseJsonSchema": SCHEMA},
     }
-    # Busy (429/503) or retired (404) models are common on the free tier: retry once,
-    # then move down the model list. Other errors (bad key, bad request) stop at once.
-    # The whole search is capped by LLM_TIME_BUDGET_S so a busy API can't stall the UI.
+    # Free-tier failures and what fixes them:
+    #   429 rate limited  -> the KEY is throttled: try the next key on the same model
+    #   503 overloaded    -> the MODEL is busy: retry once, then the next model
+    #   404 retired       -> the MODEL is gone: next model
+    #   bad key (400/401/403) -> drop that key for this call
+    # Anything else (bad request) stops at once. Capped by LLM_TIME_BUDGET_S overall.
+    order = list(range(len(keys)))
+    order = order[_good_key % len(keys):] + order[:_good_key % len(keys)]
+    dead: set[int] = set()
     errors = []
     deadline = time.monotonic() + config.LLM_TIME_BUDGET_S
     for model in [config.GEMINI_MODEL] + config.GEMINI_FALLBACK_MODELS:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        for attempt in range(2):
+        retried_busy = False
+        queue = [k for k in order if k not in dead]
+        while queue:
+            ki = queue[0]
+            label = f"{model}" + (f" (key {ki + 1})" if len(keys) > 1 else "")
             remaining = deadline - time.monotonic()
             if remaining < 3:
                 raise ExtractionError(f"Gemini gave no answer within {config.LLM_TIME_BUDGET_S:g}s: "
                                       + "; ".join(errors or ["timed out"]))
             try:
-                r = httpx.post(url, json=body, headers={"x-goog-api-key": key}, timeout=remaining)
+                r = httpx.post(url, json=body, headers={"x-goog-api-key": keys[ki]}, timeout=remaining)
             except httpx.HTTPError as e:
-                errors.append(f"{model}: {type(e).__name__}")
+                errors.append(f"{label}: {type(e).__name__}")
                 break
-            if r.status_code in (429, 503) and attempt == 0:
+            if r.status_code == 429:
+                errors.append(f"{label}: HTTP 429")
+                queue.pop(0)
+                continue
+            if r.status_code == 503 and not retried_busy:
+                retried_busy = True
                 time.sleep(2)
                 continue
-            if r.status_code in (404, 429, 503):
-                errors.append(f"{model}: HTTP {r.status_code}")
+            if r.status_code in (404, 503):
+                errors.append(f"{label}: HTTP {r.status_code}")
                 break
+            if _is_bad_key(r):
+                errors.append(f"key {ki + 1}: rejected (HTTP {r.status_code})")
+                dead.add(ki)
+                queue.pop(0)
+                continue
             if r.status_code != 200:
                 raise ExtractionError(f"Gemini {model} HTTP {r.status_code}: {r.text[:200]}")
             try:
                 out = r.json()["candidates"][0]["content"]["parts"][0]["text"]
             except (KeyError, IndexError, ValueError) as e:
                 raise ExtractionError(f"Gemini {model} returned no text") from e
+            _good_key = ki
             return _parse(out)
+        if len(dead) == len(keys):
+            raise ExtractionError("every Gemini key was rejected: " + "; ".join(errors))
     raise ExtractionError("all Gemini models busy/unavailable: " + "; ".join(errors))
 
 

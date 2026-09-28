@@ -52,17 +52,20 @@ class _Resp:
         return {"candidates": [{"content": {"parts": [{"text": self.text}]}}]}
 
 
-def _gemini_env(monkeypatch, responses, budget=45):
+def _gemini_env(monkeypatch, responses, budget=45, keys=("k1",)):
+    """responses(call_number, model, key) -> _Resp. calls records (model, key)."""
     import httpx
     from amanat import config
     from amanat.extractors import llm
     calls = []
 
-    def fake_post(url, **kw):
-        calls.append(url.split("/models/")[1].split(":")[0])
-        return responses(len(calls))
+    def fake_post(url, headers=None, **kw):
+        model = url.split("/models/")[1].split(":")[0]
+        calls.append((model, headers["x-goog-api-key"]))
+        return responses(len(calls), model, headers["x-goog-api-key"])
 
-    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setattr(config, "gemini_keys", lambda: list(keys))
+    monkeypatch.setattr(llm, "_good_key", 0)
     monkeypatch.setattr(httpx, "post", fake_post)
     monkeypatch.setattr(llm.time, "sleep", lambda s: None)
     monkeypatch.setattr(config, "GEMINI_MODEL", "main")
@@ -71,33 +74,77 @@ def _gemini_env(monkeypatch, responses, budget=45):
     return llm, calls
 
 
+OK_JSON = ('{"assets": [{"institution": "LIC", "asset_type": "Life Insurance", "account_number": "1", '
+           '"value": 5, "owner": null, "nominee": null}]}')
+
+
 def test_gemini_busy_model_falls_through_to_backup(monkeypatch):
-    ok = '{"assets": [{"institution": "LIC", "asset_type": "Life Insurance", "account_number": "1", ' \
-         '"value": 5, "owner": null, "nominee": null}]}'
-    llm, calls = _gemini_env(monkeypatch, lambda n: _Resp(503) if n <= 2 else _Resp(200, ok))
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(503) if n <= 2 else _Resp(200, OK_JSON))
     assert llm.extract_gemini("doc")[0]["institution"] == "LIC"
-    assert calls == ["main", "main", "backup1"]  # retried once, then moved on
+    assert [m for m, _ in calls] == ["main", "main", "backup1"]  # retried once, then moved on
 
 
 def test_gemini_all_busy_raises_so_rules_can_take_over(monkeypatch):
-    llm, calls = _gemini_env(monkeypatch, lambda n: _Resp(503))
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(503))
     with pytest.raises(llm.ExtractionError, match="busy/unavailable"):
         llm.extract_gemini("doc")
-    assert calls == ["main", "main", "backup1", "backup1", "backup2", "backup2"]
+    assert [m for m, _ in calls] == ["main", "main", "backup1", "backup1", "backup2", "backup2"]
 
 
-def test_gemini_bad_key_stops_immediately(monkeypatch):
-    llm, calls = _gemini_env(monkeypatch, lambda n: _Resp(400, "API key not valid"))
+def test_gemini_rate_limited_key_hands_over_to_next_key(monkeypatch):
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(429) if k == "k1" else _Resp(200, OK_JSON),
+                             keys=("k1", "k2"))
+    assert llm.extract_gemini("doc")[0]["institution"] == "LIC"
+    assert calls == [("main", "k1"), ("main", "k2")]  # same model, next key
+    calls.clear()
+    llm.extract_gemini("doc")
+    assert calls == [("main", "k2")]  # remembers the key that worked
+
+
+def test_gemini_rejected_key_is_skipped(monkeypatch):
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(400, "API key not valid") if k == "bad"
+                             else _Resp(200, OK_JSON), keys=("bad", "good"))
+    assert llm.extract_gemini("doc")
+    assert calls == [("main", "bad"), ("main", "good")]
+
+
+def test_gemini_all_keys_rejected(monkeypatch):
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(403, "denied"), keys=("a", "b"))
+    with pytest.raises(llm.ExtractionError, match="every Gemini key was rejected"):
+        llm.extract_gemini("doc")
+    assert len(calls) == 2  # doesn't keep trying other models with dead keys
+
+
+def test_gemini_bad_request_stops_immediately(monkeypatch):
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(400, "Invalid JSON payload"))
     with pytest.raises(llm.ExtractionError, match="HTTP 400"):
         llm.extract_gemini("doc")
-    assert calls == ["main"]
+    assert len(calls) == 1
 
 
 def test_gemini_time_budget_stops_the_search(monkeypatch):
-    llm, calls = _gemini_env(monkeypatch, lambda n: _Resp(503), budget=2)
+    llm, calls = _gemini_env(monkeypatch, lambda n, m, k: _Resp(503), budget=2)
     with pytest.raises(llm.ExtractionError, match="no answer within 2s"):
         llm.extract_gemini("doc")
     assert calls == []
+
+
+def test_scan_failure_keeps_the_real_llm_error(monkeypatch):
+    from amanat import config
+    from amanat.extractors import extract_document, llm
+
+    def busy(text, pdf=None):
+        raise llm.ExtractionError("gemini-3.8-flash: HTTP 429")
+
+    monkeypatch.setattr(config, "resolve_provider", lambda: "gemini")
+    monkeypatch.setattr(config, "USE_CACHE", False)
+    monkeypatch.setitem(llm.PROVIDERS, "gemini", busy)
+    import amanat.extractors as ex
+    monkeypatch.setitem(ex.PROVIDERS, "gemini", busy)
+    scan = (Path(__file__).resolve().parent.parent / "dev_samples" / "scans" / "sbi_fd_receipt_scanned.pdf")
+    r = extract_document("scan.pdf", scan.read_bytes())
+    assert r["assets"] == []
+    assert "Scanned PDF" in r["note"] and "HTTP 429" in r["note"] and "Try again" in r["note"]
 
 
 def test_mask_account():

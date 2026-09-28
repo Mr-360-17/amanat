@@ -40,6 +40,9 @@ LLM_TIME_BUDGET_S = float(os.getenv("AMANAT_LLM_TIME_BUDGET_S", "45"))
 # Trusted contacts who haven't answered a reachability check for this many days are flagged.
 REACHABILITY_DAYS = int(os.getenv("AMANAT_REACHABILITY_DAYS", "180"))
 
+# An emergency report that no second contact confirms expires after this many hours.
+EMERGENCY_REPORT_HOURS = float(os.getenv("AMANAT_EMERGENCY_REPORT_HOURS", "48"))
+
 # Base URL of the frontend page a trusted contact opens from their invite message.
 INVITE_BASE_URL = os.getenv("AMANAT_INVITE_BASE_URL", "http://localhost:5173/circle").rstrip("/")
 
@@ -55,11 +58,33 @@ VAULT_KEY_HEX = os.getenv("AMANAT_VAULT_KEY", "")
 CORS_ORIGINS = [o.strip() for o in os.getenv("AMANAT_CORS_ORIGINS", "*").split(",") if o.strip()]
 
 
+def owner_key() -> str:
+    """Secret the owner's app sends as X-Amanat-Key. From AMANAT_OWNER_KEY, else generated
+    once into data/owner.key. Keeps other people on the venue Wi-Fi out of the API."""
+    key = os.getenv("AMANAT_OWNER_KEY", "").strip()
+    if key:
+        return key
+    path = DATA_DIR / "owner.key"
+    if not path.exists():
+        import secrets
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(secrets.token_urlsafe(18))
+    return path.read_text().strip()
+
+
+def gemini_keys() -> list[str]:
+    """GEMINI_API_KEY plus optional backups GEMINI_API_KEY_2 ... GEMINI_API_KEY_5 (e.g. from
+    teammates' Google accounts). A rate-limited key hands over to the next one."""
+    names = ["GEMINI_API_KEY"] + [f"GEMINI_API_KEY_{i}" for i in range(2, 6)]
+    keys = [os.getenv(n, "").strip() for n in names]
+    return list(dict.fromkeys(k for k in keys if k))
+
+
 def resolve_provider() -> str:
     if LLM_PROVIDER != "auto":
         return LLM_PROVIDER
     if os.getenv("ANTHROPIC_API_KEY"):
         return "claude"
-    if os.getenv("GEMINI_API_KEY"):
+    if gemini_keys():
         return "gemini"
     return "rules"

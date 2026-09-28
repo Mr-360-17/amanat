@@ -24,12 +24,15 @@ $fromEnv = if (Test-Path $envFile) {
 if (-not $fromEnv) { $env:AMANAT_INVITE_BASE_URL = "http://${ip}:${FrontendPort}/circle" }
 
 $net = (Get-NetConnectionProfile | Where-Object InterfaceAlias -like '*Wi-Fi*' | Select-Object -First 1)
+# Owner key (generated on first run). Ananya's frontend sends it as the X-Amanat-Key header.
+$ownerKey = & $python -c "import sys; sys.path.insert(0, r'$backend'); from amanat import config; print(config.owner_key())"
 Write-Host ""
 Write-Host "  Amanat backend" -ForegroundColor Cyan
 Write-Host "  This laptop : http://localhost:$Port/docs"
 Write-Host "  Phones/team : http://${ip}:$Port/        <- open this on your phone to test" -ForegroundColor Green
 Write-Host "  Frontend    : tell Ananya to use  http://${ip}:$Port  as the API base URL"
 Write-Host "  Invite links: $(if ($fromEnv) { 'from .env' } else { $env:AMANAT_INVITE_BASE_URL })"
+Write-Host "  Owner key   : $ownerKey   (header X-Amanat-Key; share only with the team)" -ForegroundColor Magenta
 if ($net -and $net.NetworkCategory -eq 'Public') {
     Write-Host ""
     Write-Host "  Wi-Fi '$($net.Name)' is a PUBLIC network: Windows may block phones." -ForegroundColor Yellow

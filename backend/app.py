@@ -1,7 +1,12 @@
 """Amanat backend API. Run:  uvicorn app:app --reload --port 8000   (from backend/)"""
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import asyncio
+import re
+import secrets
+
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from amanat import bridges, circle, config
@@ -10,7 +15,28 @@ from amanat.schema import Beneficiary
 from amanat.store import Store
 
 app = FastAPI(title="Amanat API", version="0.1.0",
-              description="Your family's inheritance, held in trust.")
+              description="Your family's inheritance, held in trust. Owner endpoints need the "
+                          "X-Amanat-Key header; trusted-contact endpoints use their invite token.")
+
+# Default-deny: every route needs the owner key except these. Trusted-contact routes are
+# public because the unguessable token in the URL is their credential.
+PUBLIC_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
+CONTACT_PATH = re.compile(
+    r"^/circle/(?!ping-all$)[A-Za-z0-9_-]+(/(accept|decline|ping|confirm|emergency(/confirm)?))?$")
+OWNER_KEY = config.owner_key()
+
+
+@app.middleware("http")
+async def require_owner_key(request: Request, call_next):
+    path = request.url.path
+    if (request.method == "OPTIONS" or path in PUBLIC_PATHS or CONTACT_PATH.match(path)
+            or secrets.compare_digest(request.headers.get("x-amanat-key", "").encode(),
+                                      OWNER_KEY.encode())):
+        return await call_next(request)
+    return JSONResponse({"detail": "Missing or wrong X-Amanat-Key header"}, status_code=401)
+
+
+# Added after the auth middleware so it wraps it: 401 responses still carry CORS headers.
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS,
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -44,6 +70,19 @@ class ShareSettings(BaseModel):
     asset_types: bool = True
 
 
+class HealthCover(BaseModel):
+    insurer: str
+    policy_number: str | None = None
+    helpline: str | None = None
+    sum_insured: float | None = None
+
+
+class Medical(BaseModel):
+    allergies: str | None = None
+    conditions: str | None = None
+    medications: str | None = None
+
+
 class Profile(BaseModel):
     name: str | None = None
     phone: str | None = None
@@ -53,6 +92,13 @@ class Profile(BaseModel):
     doctor: Person | None = None
     note: str | None = None
     share: ShareSettings = ShareSettings()
+    # Shown to the circle ONLY while an emergency is active (2 of 3 confirmed).
+    health_cover: HealthCover | None = None
+    medical: Medical | None = None
+
+
+class EmergencyReport(BaseModel):
+    reason: str = Field(default="In hospital / unreachable", max_length=200)
 
 
 class ContactsRequest(BaseModel):
@@ -94,19 +140,28 @@ def health():
 
 @app.post("/upload")
 async def upload(files: list[UploadFile] = File(...)):
-    results, all_added = [], []
+    blobs = []
     for f in files:
         data = await f.read()
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(413, f"{f.filename} is larger than 15 MB")
-        try:
-            extraction = extract_document(f.filename or "upload", data)
-        except Exception as e:  # unreadable / corrupt file: report it, keep the others
-            results.append({"file": f.filename, "error": f"could not read file: {e}", "assets": []})
+        blobs.append((f.filename or "upload", data))
+
+    # Extraction can wait on the AI for up to LLM_TIME_BUDGET_S. Run every file at once in
+    # worker threads so N files take as long as the slowest one, and the server keeps
+    # answering other requests (status polling, contacts' phones) meanwhile.
+    extractions = await asyncio.gather(
+        *(run_in_threadpool(extract_document, name, data) for name, data in blobs),
+        return_exceptions=True)
+
+    results, all_added = [], []
+    for (name, _), extraction in zip(blobs, extractions):  # original order = stable asset IDs
+        if isinstance(extraction, Exception):  # unreadable / corrupt file: report, keep others
+            results.append({"file": name, "error": f"could not read file: {extraction}", "assets": []})
             continue
-        added, dupes = store.add_extracted(extraction["assets"], f.filename)
+        added, dupes = store.add_extracted(extraction["assets"], name)
         all_added += added
-        results.append({"file": f.filename, "extracted_by": extraction["extracted_by"],
+        results.append({"file": name, "extracted_by": extraction["extracted_by"],
                         "note": extraction["note"], "assets": added, "duplicates_skipped": dupes})
     chain = _commit_hash() if all_added else None
     return {"files": results, "assets": all_added,
@@ -305,19 +360,69 @@ def activate():
 
 @app.post("/checkin")
 def checkin():
-    return bridges.keeper_action("/checkin", {})
+    # A check-in also means "I'm OK": it closes any open emergency report locally,
+    # even if the keeper is offline.
+    emergency = store.mutate(circle.close_emergency)
+    return {**bridges.keeper_action("/checkin", {}), "emergency": emergency}
+
+
+def _confirm_as(c: dict) -> dict:
+    if c["status"] != circle.ACCEPTED:
+        raise HTTPException(403, f"{c['name']} never accepted the trusted-contact role, "
+                                 "so they cannot confirm")
+    return bridges.keeper_action("/confirm", {"contact_index": c["index"]})
 
 
 @app.post("/confirm")
 def confirm(req: ConfirmRequest):
+    """Operator/demo panel (owner key). Real contacts use /circle/{token}/confirm."""
     contacts = store.read(lambda s: s.get("contacts", []))
     if req.contact_index >= len(contacts):
         raise HTTPException(404, "no such trusted contact")
-    c = contacts[req.contact_index]
-    if c["status"] != circle.ACCEPTED:
-        raise HTTPException(403, f"{c['name']} never accepted the trusted-contact role, "
-                                 "so they cannot confirm")
-    return bridges.keeper_action("/confirm", req.model_dump())
+    return _confirm_as(contacts[req.contact_index])
+
+
+def _emergency_action(fn):
+    try:
+        return store.mutate(fn)
+    except KeyError:
+        raise HTTPException(404, "This invite link is not valid")
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/circle/{token}/emergency")
+def circle_report_emergency(token: str, req: EmergencyReport = EmergencyReport()):
+    """An accepted contact reports that something has happened to the owner (not death)."""
+    return _emergency_action(lambda s: circle.report_emergency(s, token, req.reason))
+
+
+@app.post("/circle/{token}/emergency/confirm")
+def circle_confirm_emergency(token: str):
+    """A second accepted contact agrees: emergency access (health + medical only) opens."""
+    return _emergency_action(lambda s: circle.confirm_emergency(s, token))
+
+
+@app.get("/emergency")
+def emergency_status():
+    return store.read(circle.emergency_view)
+
+
+@app.post("/emergency/cancel")
+def emergency_cancel():
+    """Owner: 'I'm OK'. Cancels a report or ends an active emergency."""
+    return store.mutate(circle.close_emergency)
+
+
+@app.post("/circle/{token}/confirm")
+def circle_confirm(token: str):
+    """A trusted contact confirms the owner's death from their own invite link."""
+    c = store.read(lambda s: circle.find(s, token))
+    if c is None:
+        raise HTTPException(404, "This invite link is not valid")
+    return _confirm_as(c)
 
 
 @app.post("/demo/miss-deadline")

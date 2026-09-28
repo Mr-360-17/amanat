@@ -1,5 +1,9 @@
 """Trusted Circle: the 3 trusted contacts know their role *before* anything happens.
 
+Emergency (incapacity) mode: if something happens to the owner short of death (hospital,
+unreachable), an accepted contact reports it; when 2 of 3 agree the circle gets ONLY
+health cover and medical info (never the vault). The owner checking in cancels it.
+
 - Each contact is invited the moment they are added and must accept (proves the number
   works and that they agree). Only accepted contacts can later confirm a death.
 - Accepted contacts can always open an emergency card: the owner's contact details and
@@ -45,6 +49,7 @@ def _ensure(state: dict) -> None:
     state.setdefault("contacts", [])
     state.setdefault("profile", {})
     state.setdefault("notifications", [])
+    state.setdefault("emergency", {"status": "none"})
 
 
 def owner_name(state: dict) -> str:
@@ -190,6 +195,15 @@ def accepted_count(state: dict) -> int:
 def warnings(state: dict) -> list[dict]:
     _ensure(state)
     out = []
+    em = emergency_view(state)
+    if em["status"] == "reported":
+        out.append({"contact_id": None, "type": "emergency_reported",
+                    "message": f"{em['reported_by']} reported you may be in an emergency "
+                               f"(\"{em['reason']}\"). Check in if you are OK."})
+    elif em["status"] == "active":
+        out.append({"contact_id": None, "type": "emergency_active",
+                    "message": "Emergency access is open: your circle can see your health cover and "
+                               "medical details. Check in to close it."})
     for c in state["contacts"]:
         r = reachability(c)
         msg = {
@@ -223,6 +237,128 @@ def set_profile(state: dict, profile: dict) -> dict:
     return get_profile(state)
 
 
+# ---------- emergency (incapacity) mode ----------
+
+EMERGENCY_CONFIRMATIONS = 2
+
+
+def _emergency(state: dict) -> dict:
+    """Current emergency record, expiring an unconfirmed report after the configured hours."""
+    _ensure(state)
+    em = state["emergency"]
+    if em.get("status") == "reported":
+        reported = _parse(em.get("reported_at"))
+        if reported and _now() - reported > timedelta(hours=config.EMERGENCY_REPORT_HOURS):
+            em.update(status="expired", closed_at=_iso(_now()))
+    return em
+
+
+def _owner_as_recipient(state: dict) -> dict:
+    return {"name": owner_name(state), "phone": state.get("profile", {}).get("phone")}
+
+
+def _accepted_contact(state: dict, token: str) -> dict:
+    c = find(state, token)
+    if c is None:
+        raise KeyError("invalid invite link")
+    if c["status"] != ACCEPTED:
+        raise PermissionError("accept the trusted-contact invitation first")
+    return c
+
+
+def report_emergency(state: dict, token: str, reason: str) -> dict:
+    c = _accepted_contact(state, token)
+    em = _emergency(state)
+    if em.get("status") in ("reported", "active"):
+        raise ValueError(f"an emergency is already {em['status']}; confirm it instead")
+    first = owner_name(state).split()[0]
+    state["emergency"] = em = {
+        "status": "reported", "reason": reason.strip() or "Unreachable",
+        "reported_by": c["id"], "reported_at": _iso(_now()), "confirmed_by": [c["id"]],
+        "activated_at": None, "closed_at": None, "closed_by": None,
+    }
+    notify(state, _owner_as_recipient(state), "emergency_owner_alert",
+           f"Amanat: {c['name']} reported that something may have happened to you "
+           f"(\"{em['reason']}\"). If you are OK, open Amanat and check in to cancel.")
+    for other in state["contacts"]:
+        if other["id"] != c["id"] and other["status"] == ACCEPTED:
+            notify(state, other, "emergency_confirm_request",
+                   f"Amanat: {c['name']} reported that {first} may be in an emergency "
+                   f"(\"{em['reason']}\"). If you know this is true, confirm here: "
+                   f"{invite_url(other['token'])}", invite_url(other["token"]))
+    return emergency_view(state)
+
+
+def confirm_emergency(state: dict, token: str) -> dict:
+    c = _accepted_contact(state, token)
+    em = _emergency(state)
+    if em.get("status") not in ("reported", "active"):
+        raise ValueError("there is no open emergency report to confirm")
+    if c["id"] not in em["confirmed_by"]:
+        em["confirmed_by"].append(c["id"])
+    if em["status"] == "reported" and len(em["confirmed_by"]) >= EMERGENCY_CONFIRMATIONS:
+        em.update(status="active", activated_at=_iso(_now()))
+        first = owner_name(state).split()[0]
+        for other in state["contacts"]:
+            if other["status"] == ACCEPTED:
+                notify(state, other, "emergency_active",
+                       f"Amanat: emergency access for {first} is now open to the trusted circle: "
+                       f"health cover and medical details. {invite_url(other['token'])}",
+                       invite_url(other["token"]))
+        notify(state, _owner_as_recipient(state), "emergency_owner_alert",
+               "Amanat: 2 trusted contacts confirmed an emergency. Your health cover and medical "
+               "details are now visible to your circle. Check in any time to close it.")
+    return emergency_view(state)
+
+
+def close_emergency(state: dict, by: str = "owner") -> dict:
+    """Owner is OK (check-in or 'I'm OK'). Cancels a report, or ends an active emergency."""
+    em = _emergency(state)
+    if em.get("status") not in ("reported", "active"):
+        return emergency_view(state)
+    em.update(status="cancelled" if em["status"] == "reported" else "resolved",
+              closed_at=_iso(_now()), closed_by=by)
+    first = owner_name(state).split()[0]
+    for other in state["contacts"]:
+        if other["status"] == ACCEPTED:
+            notify(state, other, "emergency_closed",
+                   f"Amanat: {first} checked in and is OK. The emergency is closed.")
+    return emergency_view(state)
+
+
+def emergency_view(state: dict) -> dict:
+    em = _emergency(state)
+    names = {c["id"]: c["name"] for c in state["contacts"]}
+    return {
+        "status": em.get("status", "none"),
+        "reason": em.get("reason"),
+        "reported_by": names.get(em.get("reported_by")),
+        "reported_at": em.get("reported_at"),
+        "confirmed_by": [names.get(i, i) for i in em.get("confirmed_by", [])],
+        "confirmations": len(em.get("confirmed_by", [])),
+        "confirmations_required": EMERGENCY_CONFIRMATIONS,
+        "activated_at": em.get("activated_at"),
+        "closed_at": em.get("closed_at"),
+    }
+
+
+def _emergency_access(state: dict) -> dict:
+    """What the circle sees while an emergency is active: health + medical only."""
+    p = get_profile(state)
+    health_assets = [
+        {"institution": a["institution"], "asset_type": a["asset_type"],
+         "policy_number": a.get("account_number")}
+        for a in state.get("assets", []) if a["asset_type"] == "Health Insurance"]
+    return {
+        "health_cover": ([p["health_cover"]] if p.get("health_cover") else []) + health_assets,
+        "medical": p.get("medical") or {},
+        "blood_group": p.get("blood_group"),
+        "doctor": p.get("doctor"),
+        "note": "Emergency access covers health and medical details only. Bank accounts, "
+                "deposits, investments and life insurance stay locked.",
+    }
+
+
 def invite_view(state: dict, token: str) -> dict:
     """What a trusted contact sees when they open their link."""
     c = find(state, token)
@@ -237,7 +373,9 @@ def invite_view(state: dict, token: str) -> dict:
                 f"{owner} has chosen you as one of 3 trusted contacts. If something ever happens to "
                 f"{first}, Amanat will ask you to help confirm it, so the family can receive what "
                 f"{first} left for them. Accept to see {first}'s emergency card."}
-    return {**base, "card": _card(state, c)}
+    em = emergency_view(state)
+    return {**base, "card": _card(state, c), "emergency": em,
+            "emergency_access": _emergency_access(state) if em["status"] == "active" else None}
 
 
 def _card(state: dict, viewer: dict) -> dict:

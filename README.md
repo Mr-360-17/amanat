@@ -12,6 +12,7 @@ When someone dies, their family often doesn't know which bank accounts, FDs, ins
 2. **Emergency card.** Once accepted, a contact can always open Ramesh's card: phone, address, family, doctor, the other contacts, and **where** his assets are held. **Never amounts or account numbers**; those are released only after 2 of 3 contacts confirm. Ramesh chooses what the card shows.
 3. **Kept fresh.** Periodic "still reachable?" checks. Anyone silent, unaccepted or declined is flagged on Ramesh's dashboard, just like a missing nominee.
 4. **Only accepted contacts can confirm a death.** A stranger with a phone number can't trigger a release.
+5. **Emergency mode ("something happens", short of death).** An accepted contact reports it, for example "admitted to hospital". Ramesh is alerted at once and can cancel by checking in. If a second contact confirms (2 of 3), the circle gets **only** his health cover, allergies, conditions, medications, blood group and doctor, so they can act at the hospital. Bank accounts, deposits, investments and life insurance stay locked, and the family's vault release still needs the separate on-chain death confirmation. An unconfirmed report expires after 48 hours.
 
 ## Structure
 
@@ -81,6 +82,12 @@ API docs: http://localhost:8000/docs · Tests: `..\.venv\Scripts\python -m pytes
 powershell -ExecutionPolicy Bypass -File backend\run_lan.ps1
 ```
 It prints the laptop's Wi-Fi address. Open `http://<that-ip>:8000/` on a phone: a green "✓ This device can reach the backend" means the phone demo will work. Invite links automatically point to `http://<that-ip>:5173/circle/<token>`. If Windows shows a firewall popup, tick both Private and Public and click Allow. If the phone still can't connect, the venue Wi-Fi is isolating devices: put the laptop and phone on one phone's hotspot instead.
+
+**Owner key:** all owner and demo endpoints require the header `X-Amanat-Key`. The key comes from `AMANAT_OWNER_KEY`, or is generated once into `backend/data/owner.key`, and `run_lan.ps1` prints it. Only `/`, `/health`, `/docs` and the trusted-contact invite links (`/circle/<token>...`, where the token is the credential) are public. Access is default-deny, so any new route is protected automatically.
+
+**Before every rehearsal / the demo:** `..\.venv\Scripts\python demo_prep.py` (add `--loaded` to start with Ramesh's data). It prints GO / NO-GO.
+
+**Backup Gemini keys:** add `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3` to `backend/.env`. A key that hits its rate limit (429) hands over to the next, and the backend remembers which key last worked.
 
 **Privacy rule:** `GET /beneficiary/:name` returns nothing until the keeper reports `RELEASED`. After release it includes full account numbers, because the family needs them to claim. For frontend work before the keeper exists, `POST /demo/simulate-release` fakes a release. It is refused once a real keeper is connected, and `POST /demo/reset` clears it.
 
