@@ -1,6 +1,8 @@
 # frontend/ (Ananya)
 
-**Base URL:** `http://localhost:8000`. CORS is open, so any dev server works.
+**Base URL:** `http://localhost:8000` when the backend runs on your own laptop. On the hackathon Wi-Fi, use Nand's laptop: `http://<Nand's IP>:8000`, which `backend/run_lan.ps1` prints when it starts. Keep the base URL in one config variable. CORS is open, so any dev server works.
+
+**Run your dev server on the network too** (Vite: `npm run dev -- --host`), so phones can open the invite page.
 
 **Start before the backend is running:** build against the files in `shared/mock/`:
 - `assets.json`: Ramesh's 5 assets (screens 1, 3, 4)
@@ -29,7 +31,7 @@
 | 12 Reachability check | Owner: `POST /circle/ping-all`. Contact: "I'm still reachable" button → `POST /circle/:token/ping` |
 | Phone mock-up | `GET /notifications`: simulated SMS outbox, newest first. Show the latest message on the "phone" in the demo; its `link` opens screen 10 |
 | 8 Transaction log | `GET /txlog` |
-| 9 Beneficiary view | `GET /beneficiary/Sunita Kumar` → her assets with `your_share` and `your_value`; `GET /claim/A3` for each checklist |
+| 9 Beneficiary view | `GET /beneficiary/Sunita Kumar`. **Before release:** `released: false`, `message`, empty `assets`, so show a locked screen. **After release:** her assets with `your_share`, `your_value` and full account numbers; `GET /claim/A3` for each checklist. To build this screen before Pratham's keeper exists, call `POST /demo/simulate-release` first |
 
 Invite links point to `AMANAT_INVITE_BASE_URL/<token>` (default `http://localhost:5173/circle/<token>`). Tell Nand your dev server's port if it's different.
 

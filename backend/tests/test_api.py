@@ -82,8 +82,42 @@ def test_beneficiary_shares_must_total_100():
         {"name": "Sunita Kumar", "relation": "Wife", "share": 60},
         {"name": "Rahul Kumar", "relation": "Son", "share": 40}]})
     assert ok.status_code == 200
+    client.post("/demo/simulate-release")
     view = client.get("/beneficiary/Rahul Kumar").json()
     assert view["assets"][0]["your_value"] == 200000
+
+
+def test_beneficiary_sees_nothing_before_release():
+    client.post("/demo/load")
+    view = client.get("/beneficiary/Sunita Kumar").json()
+    assert view["released"] is False and view["assets"] == [] and view["total_value"] is None
+    flat = str(view)
+    for secret in ("SBI", "LIC", "1000000", "XXXX"):
+        assert secret not in flat
+
+
+def test_after_release_beneficiary_gets_full_account_numbers():
+    _upload("sbi_fd_receipt.pdf")
+    aid = client.get("/assets").json()[0]["id"]
+    client.post("/beneficiaries", json={"asset_id": aid, "beneficiaries": [
+        {"name": "Sunita Kumar", "relation": "Wife", "share": 100}]})
+    assert client.get("/assets").json()[0]["account_number"] == "XXXX1234"  # owner API stays masked
+    assert client.post("/demo/simulate-release").json()["state"] == "RELEASED"
+    view = client.get("/beneficiary/sunita kumar").json()
+    assert view["released"] is True
+    assert view["assets"][0]["account_number"] == "30556781234"
+
+
+def test_reset_clears_simulated_release():
+    client.post("/demo/simulate-release")
+    client.post("/demo/reset")
+    assert client.get("/status").json()["state"] == "ACTIVE"
+
+
+def test_simulated_release_refused_when_real_keeper_connected(monkeypatch):
+    from amanat import config
+    monkeypatch.setattr(config, "KEEPER_URL", "http://127.0.0.1:9")
+    assert client.post("/demo/simulate-release").status_code == 409
 
 
 def test_vault_hash_changes_on_every_change():

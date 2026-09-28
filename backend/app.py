@@ -1,6 +1,7 @@
 """Amanat backend API. Run:  uvicorn app:app --reload --port 8000   (from backend/)"""
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from amanat import bridges, circle, config
@@ -68,6 +69,20 @@ class ClaimStatusRequest(BaseModel):
 
 def _commit_hash() -> dict | None:
     return bridges.push_vault_hash(store.vault_hash) if store.vault_hash else None
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    """Open http://<laptop-ip>:8000/ on a phone to check it can reach the backend."""
+    h = health()
+    rows = "".join(f"<li>{k.replace('_', ' ')}: <b>{v}</b></li>" for k, v in h.items())
+    return (
+        "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
+        "<title>Amanat</title><body style='font-family:system-ui;padding:24px;max-width:480px'>"
+        "<h1 style='margin:0'>Amanat</h1><p style='color:#555'>Your family's inheritance, held in trust.</p>"
+        "<p style='font-size:20px;color:#15803d'>&#10003; This device can reach the backend.</p>"
+        f"<ul>{rows}</ul><p><a href='/docs'>API docs</a></p></body>"
+    )
 
 
 @app.get("/health")
@@ -251,16 +266,23 @@ def claim_status(asset_id: str, req: ClaimStatusRequest):
 
 @app.get("/beneficiary/{name}")
 def beneficiary_view(name: str):
-    """Screen 9: everything assigned to one beneficiary, with claim guides."""
+    """Screen 9: what one beneficiary receives. Reveals NOTHING until the keeper reports
+    RELEASED (2 of 3 trusted contacts confirmed). After release it includes the full,
+    unmasked account numbers, because the family needs them to file claims."""
+    status = bridges.status()
+    if status.get("state") != "RELEASED":
+        return {"beneficiary": name, "released": False, "status_source": status.get("source"),
+                "message": "Nothing has been released. Amanat releases assets only after the "
+                           "owner misses check-ins and 2 of 3 trusted contacts confirm.",
+                "assets": [], "total_value": None}
     mine = []
-    for a in store.assets():
+    for a in store.read(lambda s: [dict(x) for x in s["assets"]]):
         share = next((b["share"] for b in a["beneficiaries"] if b["name"].lower() == name.lower()), None)
         if share is not None:
             mine.append({**a, "your_share": share,
                          "your_value": round((a.get("value") or 0) * share / 100, 2)})
-    status = bridges.status()
-    return {"beneficiary": name, "released": status.get("state") == "RELEASED",
-            "status_source": status.get("source"), "assets": mine,
+    return {"beneficiary": name, "released": True, "status_source": status.get("source"),
+            "owner_name": store.read(circle.owner_name), "assets": mine,
             "total_value": sum(x["your_value"] for x in mine)}
 
 
@@ -316,4 +338,15 @@ def demo_load():
 @app.post("/demo/reset")
 def demo_reset():
     store.reset()
+    bridges.clear_simulation()
     return {"ok": True}
+
+
+@app.post("/demo/simulate-release")
+def demo_simulate_release():
+    """Frontend dev only: pretend the keeper released, so screen 9 can be built before
+    Pratham's contract is connected. Refused once a real keeper is connected."""
+    if bridges.keeper_online():
+        raise HTTPException(409, "A real keeper is connected; release happens on-chain only")
+    bridges.simulate_state("RELEASED")
+    return bridges.status()

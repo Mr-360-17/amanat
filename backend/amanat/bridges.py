@@ -124,6 +124,27 @@ def _mock(name: str):
     return json.loads((config.MOCK_DIR / name).read_text(encoding="utf-8"))
 
 
+# Demo-only state override used while no keeper is connected (see /demo/simulate-release).
+_simulated_state: str | None = None
+
+
+def simulate_state(state: str) -> None:
+    global _simulated_state
+    _simulated_state = state
+
+
+def clear_simulation() -> None:
+    global _simulated_state
+    _simulated_state = None
+
+
+def _mock_status() -> dict:
+    s = {**_mock("status.json"), "source": "mock"}
+    if _simulated_state:
+        s["state"], s["source"] = _simulated_state, "simulated"
+    return s
+
+
 def status() -> dict:
     if keeper_online():
         try:
@@ -131,8 +152,9 @@ def status() -> dict:
             r.raise_for_status()
             return {**r.json(), "source": "keeper"}
         except httpx.HTTPError as e:
+            # Keeper down: fail closed. Never report a simulated release here.
             return {**_mock("status.json"), "source": "mock", "error": f"keeper unreachable: {e}"}
-    return {**_mock("status.json"), "source": "mock"}
+    return _mock_status()
 
 
 def txlog() -> list[dict]:

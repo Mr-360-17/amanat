@@ -76,6 +76,14 @@ copy .env.example .env          # add an API key here
 
 API docs: http://localhost:8000/docs · Tests: `..\.venv\Scripts\python -m pytest tests`
 
+**For the demo (phones + teammates on the same Wi-Fi):**
+```powershell
+powershell -ExecutionPolicy Bypass -File backend\run_lan.ps1
+```
+It prints the laptop's Wi-Fi address. Open `http://<that-ip>:8000/` on a phone: a green "✓ This device can reach the backend" means the phone demo will work. Invite links automatically point to `http://<that-ip>:5173/circle/<token>`. If Windows shows a firewall popup, tick both Private and Public and click Allow. If the phone still can't connect, the venue Wi-Fi is isolating devices: put the laptop and phone on one phone's hotspot instead.
+
+**Privacy rule:** `GET /beneficiary/:name` returns nothing until the keeper reports `RELEASED`. After release it includes full account numbers, because the family needs them to claim. For frontend work before the keeper exists, `POST /demo/simulate-release` fakes a release. It is refused once a real keeper is connected, and `POST /demo/reset` clears it.
+
 ### How extraction works
 
 1. Text is pulled out of the PDF with pypdf. A scanned PDF with no text layer is sent to Claude or Gemini as a PDF.
