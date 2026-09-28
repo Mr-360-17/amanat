@@ -3,10 +3,10 @@ import json
 import threading
 from collections import Counter
 
-from . import circle, config, vault
+from . import circle, config, family, vault
 from .schema import Asset, Beneficiary, canonical_asset_type, category, mask_account
 
-_EMPTY = {"assets": [], "contacts": [], "profile": {}, "notifications": []}
+_EMPTY = {"assets": [], "contacts": [], "profile": {}, "notifications": [], "family": []}
 
 
 class Store:
@@ -94,6 +94,7 @@ class Store:
             for a in self._state["assets"]:
                 if a["id"] == asset_id:
                     a["beneficiaries"] = [b.model_dump() for b in beneficiaries]
+                    family.sync(self._state)
                     self._commit()
                     return self._public(a)
         raise KeyError(asset_id)
@@ -154,5 +155,6 @@ class Store:
             circle.set_profile(self._state, mock("profile.json"))
             # Contacts start as "pending" so the demo can show them accepting live.
             circle.set_contacts(self._state, mock("contacts.json"))
+            family.sync(self._state)
             self._commit()
         return self.summary()

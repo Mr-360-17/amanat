@@ -45,6 +45,9 @@ EMERGENCY_REPORT_HOURS = float(os.getenv("AMANAT_EMERGENCY_REPORT_HOURS", "48"))
 
 # Base URL of the frontend page a trusted contact opens from their invite message.
 INVITE_BASE_URL = os.getenv("AMANAT_INVITE_BASE_URL", "http://localhost:5173/circle").rstrip("/")
+# Beneficiaries' private pages; defaults to the same frontend as the invite links.
+FAMILY_BASE_URL = os.getenv("AMANAT_FAMILY_BASE_URL",
+                            INVITE_BASE_URL.rsplit("/circle", 1)[0] + "/family").rstrip("/")
 
 # Re-use extraction results for a file we've already seen (demo safety net).
 USE_CACHE = os.getenv("AMANAT_USE_CACHE", "1") == "1"

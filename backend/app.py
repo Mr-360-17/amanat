@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from amanat import bridges, circle, config
+from amanat import bridges, circle, config, family
 from amanat.extractors import extract_document
 from amanat.schema import Beneficiary
 from amanat.store import Store
@@ -22,7 +22,9 @@ app = FastAPI(title="Amanat API", version="0.1.0",
 # public because the unguessable token in the URL is their credential.
 PUBLIC_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
 CONTACT_PATH = re.compile(
-    r"^/circle/(?!ping-all$)[A-Za-z0-9_-]+(/(accept|decline|ping|confirm|emergency(/confirm)?))?$")
+    r"^/circle/(?!ping-all$)[A-Za-z0-9_-]+(/(accept|decline|ping|confirm|emergency(/confirm)?))?$"
+    # Beneficiaries' private pages: the token is their credential, like contacts'.
+    r"|^/family/[A-Za-z0-9_-]+(/claim/[A-Za-z0-9]+)?$")
 OWNER_KEY = config.owner_key()
 
 
@@ -343,9 +345,50 @@ def beneficiary_view(name: str):
 
 # ---- protection / chain (proxied to Pratham's keeper agent) ----
 
+def _status_with_release_hook() -> dict:
+    """Keeper status; the first time it reads RELEASED, each beneficiary gets their link."""
+    s = bridges.status()
+    if s.get("state") == "RELEASED":
+        store.mutate(family.on_release)
+    return s
+
+
 @app.get("/status")
 def status():
-    return bridges.status()
+    return _status_with_release_hook()
+
+
+# ---- beneficiaries' private pages (token in the link is the credential) ----
+
+@app.get("/family")
+def family_list():
+    """Owner/presenter: who receives what, and each person's private link."""
+    return store.mutate(family.owner_list)
+
+
+@app.get("/family/{token}")
+def family_view(token: str):
+    released = _status_with_release_hook().get("state") == "RELEASED"
+    try:
+        return store.read(lambda s: family.view(s, token, released))
+    except KeyError:
+        raise HTTPException(404, "This link is not valid")
+
+
+@app.get("/family/{token}/claim/{asset_id}")
+def family_claim(token: str, asset_id: str):
+    released = _status_with_release_hook().get("state") == "RELEASED"
+    try:
+        mine = store.read(lambda s: family.view(s, token, released))
+    except KeyError:
+        raise HTTPException(404, "This link is not valid")
+    asset = next((a for a in mine.get("assets", []) if a["id"] == asset_id), None)
+    if not mine["released"] or asset is None:
+        raise HTTPException(404, "Nothing to show here")
+    try:
+        return bridges.claim_guide(asset)
+    except Exception as e:
+        raise HTTPException(502, f"claim agent failed: {e}")
 
 
 @app.get("/txlog")
@@ -454,4 +497,4 @@ def demo_simulate_release():
     if bridges.keeper_online():
         raise HTTPException(409, "A real keeper is connected; release happens on-chain only")
     bridges.simulate_state("RELEASED")
-    return bridges.status()
+    return _status_with_release_hook()

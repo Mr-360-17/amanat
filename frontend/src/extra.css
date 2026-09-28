@@ -1,0 +1,150 @@
+/* Additions for the wired-up app. Built on Ananya's design tokens in styles.css. */
+
+/* shared controls */
+.field{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:500 13px 'DM Sans';color:var(--ink);background:#fff;outline:0}
+.field:focus{border-color:#7fa99a;box-shadow:0 0 0 3px rgba(30,90,78,.1)}
+textarea.field{resize:vertical}
+button:disabled,.primary:disabled{opacity:.55;cursor:not-allowed}
+.primary.light{background:var(--lime);color:#1b4a40}
+.ghost-sm,.ghost-dark,.chip{border:1px solid var(--line);background:#fff;color:var(--green);border-radius:8px;padding:8px 11px;font:600 11px 'DM Sans';display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.ghost-sm svg,.ghost-dark svg,.chip svg{width:14px}
+.ghost-dark{background:transparent;color:#dceca8;border-color:rgba(220,236,168,.35)}
+.icon-btn{border:0;background:transparent;color:#8d9a96;cursor:pointer;display:grid;place-items:center;padding:4px;margin-left:auto}
+.icon-btn svg{width:16px}
+.user .icon-btn{color:#a9c0ba}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn-row.center{justify-content:center}
+.save-row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.muted{color:var(--muted)}.small{font-size:11px}.tiny{font-size:9px}
+.form-error{display:flex;gap:8px;align-items:flex-start;background:#fbeceb;color:#9b3f36;border-radius:9px;padding:10px 12px;font-size:12px;margin:10px 0}
+.form-error svg{width:16px;flex:none}
+.ok{color:#4d855c}.bad{color:var(--red)}
+.mono-light{font-family:monospace}
+.bell-alert{border-color:#e7a79f!important;color:var(--red)!important;animation:pulse 1.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(185,82,71,.15)}}
+
+/* toasts */
+.toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:100;max-width:380px}
+.toast{display:flex;gap:10px;align-items:flex-start;background:#153d35;color:#fff;border-radius:11px;padding:12px 14px;font-size:12px;box-shadow:var(--shadow)}
+.toast.err{background:#8e3a32}
+.toast svg{width:16px;flex:none}
+.toast button{border:0;background:transparent;color:inherit;opacity:.7;margin-left:auto;cursor:pointer}
+
+/* unlock / loading */
+.unlock{min-height:100vh;display:grid;place-items:center;background:var(--cream);padding:20px}
+.unlock-card{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:18px;padding:32px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);text-align:center;align-items:center}
+.unlock-card h1{font:700 24px Manrope;margin:0}.unlock-card p{margin:0;color:var(--muted);font-size:13px}
+.unlock-card small{color:#9aa5a1;font-size:10px}
+.unlock-card .primary{justify-content:center;width:100%}
+.unlock-icon{width:44px;height:44px;color:var(--green)}.unlock-icon.warn{color:var(--gold)}
+.brand.dark{padding:0 0 8px}.brand.dark b{color:var(--ink)}.brand.dark span{color:var(--muted)}
+
+/* dashboard */
+.emergency-banner{display:flex;align-items:center;gap:14px;background:#8e3a32;color:#fff;border-radius:14px;padding:16px 18px;margin-bottom:16px}
+.emergency-banner>svg{width:30px;height:30px;flex:none}
+.emergency-banner b,.emergency-banner span{display:block}.emergency-banner span{font-size:12px;opacity:.85;margin-top:2px}
+.emergency-banner .primary{margin-left:auto;flex:none}
+.alert-list{display:flex;flex-direction:column;gap:8px}
+.text-btn.more{margin:2px 0 0 auto}
+.warning.slim{margin-top:10px}
+.empty{background:#fff;border:1.5px dashed #c8d4cf;border-radius:16px;padding:34px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty h3{font:700 18px Manrope;margin:8px 0 0}.empty p{color:var(--muted);font-size:12px;max-width:420px;margin:0 0 8px}
+.stat{cursor:pointer}
+.file .note{color:#8f6a2a!important}
+.info-banner{display:flex;gap:10px;align-items:center;background:#f4eee1;color:#6d5a33;border-radius:11px;padding:11px 14px;font-size:12px;margin-bottom:14px}
+.info-banner svg{width:16px;flex:none}
+
+/* beneficiaries */
+.split .person{gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.add-person{display:grid;grid-template-columns:1.4fr 1fr auto auto;gap:6px;margin-top:12px}
+
+/* contacts */
+.contact-status.declined{background:#fbeceb;color:#9b3f36}
+.form-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+.form-card h3{font:700 14px Manrope;margin:16px 0 8px;display:flex;gap:6px;align-items:center}.form-card h3:first-child{margin-top:0}
+.form-card h3 svg{width:16px;color:var(--red)}
+.form-card label{display:block;font-size:11px;color:var(--muted);margin-bottom:9px}
+.form-card label .field{margin-top:4px}
+.contact-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.contact-form-row{display:grid;grid-template-columns:28px 1.3fr 1.2fr 1fr;gap:8px;align-items:center}
+.contact-form-row .contact-num{position:static}
+
+/* protection */
+.timeline>span.done{background:#2c6658}
+.demo-tools{margin-top:18px;border-top:1px dashed var(--line);padding-top:12px;display:flex;align-items:center;justify-content:space-between}
+.demo-tools>span{font-size:8px;letter-spacing:1.4px;color:#9aa5a1;font-weight:700}
+
+/* transactions */
+.tx-line i.pending{background:#f4eee1;color:#a47c38}
+
+/* emergency card settings */
+.settings-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.three{display:grid;grid-template-columns:1.3fr 1fr 1fr auto;gap:6px;margin-bottom:6px}
+.toggle{display:flex!important;align-items:center;gap:9px;font-size:12px!important;color:var(--ink)!important;cursor:pointer}
+.toggle input{width:16px;height:16px;accent-color:var(--green)}
+.emergency-only{border-color:#ecc5c0;background:#fffafa}
+
+/* phone pages: contact + family */
+.mobile-page{min-height:100vh;background:var(--cream)}
+.mobile-inner{max-width:460px;margin:0 auto;padding:18px 16px 40px;display:flex;flex-direction:column;gap:12px}
+.m-head{display:flex;justify-content:space-between;align-items:center}
+.m-center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;color:var(--muted);padding:20px}
+.m-center h2{color:var(--ink);font:700 22px Manrope;margin:6px 0 0}.m-center p{margin:0;font-size:13px;max-width:320px}
+.m-center.locked .beneficiary-brand{color:var(--ink);margin-bottom:24px}
+.big-icon{width:48px;height:48px;color:#9fb1ab}
+.m-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.m-card p{margin:0;font-size:12px;color:var(--muted);line-height:1.55}
+.m-card h1,.m-card h2{font:700 21px/1.2 Manrope;margin:4px 0}
+.m-card .primary,.m-card .danger,.m-card .ghost{width:100%;justify-content:center;margin-top:2px}
+.m-card.highlight{border-color:#b7d3a8;background:#f6fbf2}
+.m-card.invite{text-align:center;align-items:center}
+.m-points{list-style:none;padding:0;margin:6px 0;text-align:left;display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--ink)}
+.m-points li{display:flex;gap:8px;align-items:flex-start}.m-points svg{width:15px;color:var(--green);flex:none;margin-top:1px}
+.m-card .identity{margin:4px 0}
+.call{margin-left:auto;width:34px;height:34px;border-radius:50%;background:#e8f3e4;color:#48734d;display:grid;place-items:center;flex:none}
+.call svg{width:15px}
+.m-line{display:flex;gap:6px;align-items:flex-start}.m-line svg{width:14px;flex:none}
+.m-note{background:#faf5e8;border-radius:9px;padding:10px;color:#6d5a33!important;font-style:italic}
+.m-person{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f0f2ee}
+.m-person b,.m-person span{display:block;font-size:12px}.m-person span{font-size:10px;color:var(--muted)}
+.m-person .avatar svg{width:15px}.m-person>svg{width:16px}
+.m-tags{display:flex;flex-wrap:wrap;gap:6px}.m-tags span{background:#eef3ea;border-radius:20px;padding:6px 10px;font-size:11px}
+.m-privacy{display:flex;gap:6px;background:#f3f4ef;border-radius:9px;padding:10px;font-size:11px!important}.m-privacy svg{width:14px;flex:none}
+.m-steps{margin:0;padding-left:18px;font-size:12px;display:flex;flex-direction:column;gap:6px;color:var(--ink)}
+.m-card.emergency{border-color:#e7a79f;background:#fff7f6}
+.m-em-head{display:flex;gap:10px;align-items:flex-start}.m-em-head svg{width:24px;color:var(--red);flex:none}
+.m-em-head b,.m-em-head span{display:block}.m-em-head span{font-size:11px;color:var(--muted)}
+.m-access{display:flex;gap:10px;background:#fff;border:1px solid #f0d6d2;border-radius:10px;padding:12px}.m-access svg{color:var(--red);width:20px;flex:none}
+.m-access b,.m-access span,.m-access a{display:block;font-size:12px}.m-access span{color:var(--muted);font-size:11px}.m-access a{color:var(--green);font-weight:700;margin-top:4px}
+.m-med{display:grid;grid-template-columns:1fr 1fr;gap:8px}.m-med div{background:#fff;border:1px solid #f0d6d2;border-radius:9px;padding:9px}
+.m-med span{display:block;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase}.m-med b{font-size:12px}
+.m-ok{display:flex;gap:6px;align-items:center;color:#48734d!important;font-weight:600}.m-ok svg{width:15px}
+.em-btn{color:var(--red)!important;border-color:#ecc5c0!important;display:flex;gap:6px;align-items:center}.em-btn svg{width:16px}
+.danger-zone{border-style:dashed}.danger-zone .alert-icon{margin:6px auto}
+.m-card .confirmed-icon{margin:6px auto}
+
+.family-page{min-height:100vh;background:var(--cream)}
+.family-page .page{max-width:900px}
+.checklist label{cursor:pointer}.checklist label.done span{text-decoration:line-through;color:var(--muted)}
+.checklist p{margin:8px 0}
+a.claim-btn{text-decoration:none}
+
+/* presenter */
+.demo-page{max-width:1200px;margin:0 auto;padding:28px 24px 60px}
+.demo-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.demo-head .beneficiary-brand{color:var(--ink);margin:0}
+.demo-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.demo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.demo-col{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.demo-col h3{font:700 15px Manrope;margin:0 0 4px;display:flex;gap:8px;align-items:center}.demo-col h3 svg{width:18px;color:var(--green)}
+.demo-link{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);background:#fafaf7;border-radius:10px;padding:11px 12px;cursor:pointer;text-align:left;font:600 12px 'DM Sans';color:var(--ink)}
+.demo-link b,.demo-link small{display:block}.demo-link small{font-weight:500;color:var(--muted);font-size:10px}.demo-link svg{width:15px;color:var(--green)}
+.sms-feed{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}
+.sms-feed h3{font:700 15px Manrope;margin:0 0 10px;display:flex;gap:8px;align-items:center}.sms-feed h3 svg{width:18px}
+.sms{border-top:1px solid #f0f2ee;padding:10px 0}.sms>div{display:flex;justify-content:space-between;font-size:11px}.sms>div span{color:var(--muted)}
+.sms p{font-size:12px;margin:4px 0}
+
+@media(max-width:900px){.settings-grid,.demo-grid{grid-template-columns:1fr}.contact-form-row{grid-template-columns:24px 1fr}.contact-form-row .field{grid-column:2}
+  .emergency-banner{flex-wrap:wrap}.emergency-banner .primary{margin-left:0}.add-person{grid-template-columns:1fr 1fr}}

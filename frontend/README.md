@@ -1,15 +1,24 @@
 # frontend/ (Ananya)
 
-**Base URL:** `http://localhost:8000` when the backend runs on your own laptop. On the hackathon Wi-Fi, use Nand's laptop: `http://<Nand's IP>:8000`, which `backend/run_lan.ps1` prints when it starts. Keep the base URL in one config variable. CORS is open, so any dev server works.
+Design by Ananya. Wired to the backend by Nand. Run: `npm install`, then `npm run dev` (it listens on the Wi-Fi too).
 
-**Owner key (required):** every owner request must send the header `X-Amanat-Key: <key>`. Without it the backend answers **401**, which keeps other teams on the venue Wi-Fi out. Nand's `run_lan.ps1` prints the key when the backend starts. Keep it in a local env file (e.g. `.env.local`) and **don't commit it**. Wrap `fetch` once so every call adds the header:
+## One app, four people
 
-```js
-const API = import.meta.env.VITE_API_URL;           // e.g. http://10.80.79.72:8000
-const KEY = import.meta.env.VITE_AMANAT_KEY;
-export const api = (path, opts = {}) =>
-  fetch(API + path, { ...opts, headers: { "X-Amanat-Key": KEY, ...(opts.headers || {}) } });
-```
+| URL | Who | File |
+|---|---|---|
+| `/` | **Ramesh** (owner): unlock with the owner key | `src/OwnerApp.jsx` |
+| `/circle/<token>` | **Trusted contact's phone** (link from their SMS) | `src/ContactApp.jsx` |
+| `/family/<token>` | **Beneficiary's phone** (link sent only at release) | `src/FamilyApp.jsx` |
+| `/demo` | **Presenter** page for the live demo | `src/DemoApp.jsx` |
+
+The beneficiary view and contact confirmation are **not** in Ramesh's menu: they belong to other people and open from their own private links.
+
+- **All backend calls** go through `src/api.js`. The API base defaults to port 8000 on the same host the page was opened from, so phones need no configuration (`VITE_API_URL` can override it).
+- **The owner key is never in the code or env files.** `VITE_*` values end up in the page's JavaScript, where anyone on the Wi-Fi could read them. Ramesh types the key once on the unlock screen, and it's kept in that browser. `run_lan.ps1` prints it.
+- **No silent mock fallback:** if the backend is down or a request fails, the app says so (toasts and error screens). The files in `shared/mock/` remain as a reference for the data shapes.
+- **Shared bits** (money format, polling, toasts, countdown) are in `src/ui.jsx`. New styles are in `src/extra.css`, on top of Ananya's `styles.css` tokens.
+
+## API reference
 
 **No key for trusted-contact pages:** `/circle/:token...` works without it, because the token in the link is the contact's credential. The contact's phone never needs the owner key.
 
