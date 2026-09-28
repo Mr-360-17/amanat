@@ -12,7 +12,7 @@ import * as fs from "fs";
 import * as path from "path";
 import express from "express";
 import { ethers } from "ethers";
-import { ABI, CONTRACT_ADDRESS, NETWORK, CHAIN_ID, EXPLORER_URL, DATA_DIR, provider } from "./config";
+import { ABI, CONTRACT_ADDRESS, NETWORK, CHAIN_ID, EXPLORER_URL, DATA_DIR, provider, txOverrides, decodeRevert } from "./config";
 import { STATE_NAMES } from "./stateMachine";
 import { storeVaultHash, ContractRefused } from "./keeper";
 import { latestNotifications } from "./notifier";
@@ -276,12 +276,102 @@ app.post("/beneficiaries", (req, res) => {
   res.json({ ok: true, on_chain_updated: false, note: "Beneficiary names and shares stay in the backend; the chain only stores beneficiary wallets." });
 });
 
-const notEnabled = (what: string) => (_req: express.Request, res: express.Response) =>
-  res.status(501).json({
-    error: `${what} must be signed by the owner/contact wallet. Keeper-side (custodial) signing is not enabled yet. Use the wallet UI or scripts/interact.ts for now.`,
+// ---------- custodial signing (DEMO ONLY, opt-in with ADAPTER_CUSTODIAL=true) ----------
+// The team backend calls /checkin and /confirm for the owner and the contacts, so for the
+// testnet demo the keeper process signs with their throwaway keys from .env.
+// In production each person signs with their own wallet and these routes stay disabled.
+
+const CUSTODIAL = (process.env.ADAPTER_CUSTODIAL || "").trim().toLowerCase() === "true";
+const walletBusy = new Set<string>(); // one tx at a time per wallet (no nonce clashes)
+
+/** Friendly text for the contract's custom errors. */
+const REFUSAL_TEXT: Record<string, string> = {
+  InvalidState: "Not allowed in the vault's current state",
+  GraceNotOver: "The grace period hasn't ended yet; the owner gets the full window first",
+  AlreadyConfirmed: "This contact already confirmed in this round",
+  NotTrustedContact: "This wallet is not one of the 3 trusted contacts",
+  NotOwner: "Only the vault owner can do this",
+};
+
+function envWallet(keyName: string): ethers.Wallet | null {
+  const key = (process.env[keyName] || "").trim();
+  return key ? new ethers.Wallet(key, provider) : null;
+}
+
+/** Sign + send one vault call as `wallet`, wait for the block, and answer the backend. */
+async function sendAs(res: express.Response, label: string, wallet: ethers.Wallet, call: (v: ethers.Contract, o: object) => Promise<ethers.TransactionResponse>) {
+  if (walletBusy.has(wallet.address)) return res.status(503).json({ error: `${label}: a previous transaction from this wallet is still pending` });
+  walletBusy.add(wallet.address);
+  try {
+    const vault = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
+    let tx: ethers.TransactionResponse;
+    try {
+      tx = await call(vault, await txOverrides());
+    } catch (e) {
+      const d = decodeRevert(e, vault.interface);
+      if (d.name) return res.status(409).json({ error: `${REFUSAL_TEXT[d.name] ?? "Contract refused"} (${d.text})`, contract_error: d.name });
+      throw e;
+    }
+    const receipt = await tx.wait(1, 55_000); // backend waits 60 s
+    const ok = receipt?.status === 1;
+    console.log(`[adapter] ${label} from ${wallet.address}: ${tx.hash} block ${receipt?.blockNumber} ${ok ? "SUCCESS" : "FAILED"}`);
+    return res.status(ok ? 200 : 502).json({ ok, action: label, tx_hash: tx.hash, block: receipt?.blockNumber, explorer_url: explorerTx(tx.hash) });
+  } catch (e: any) {
+    return res.status(502).json({ error: `${label} failed: ${e?.shortMessage || e?.message}` });
+  } finally {
+    walletBusy.delete(wallet.address);
+  }
+}
+
+function custodialOff(res: express.Response, what: string) {
+  return res.status(501).json({
+    error: `${what} must be signed by the owner/contact wallet. Keeper-side (custodial) signing is off (set ADAPTER_CUSTODIAL=true for the demo).`,
   });
-app.post("/checkin", notEnabled("Check-in"));
-app.post("/confirm", notEnabled("Death confirmation"));
+}
+
+app.post("/checkin", async (_req, res) => {
+  if (!CUSTODIAL) return custodialOff(res, "Check-in");
+  const owner = envWallet("OWNER_PRIVATE_KEY");
+  if (!owner) return res.status(500).json({ error: "OWNER_PRIVATE_KEY missing in the keeper's .env" });
+  // In GRACE/CONFIRMED the contract treats a check-in as "I'm alive": it cancels and starts a new round
+  return sendAs(res, "checkIn", owner, (v, o) => v.checkIn(o));
+});
+
+app.post("/confirm", async (req, res) => {
+  if (!CUSTODIAL) return custodialOff(res, "Death confirmation");
+  const index = req.body?.contact_index;
+  if (![0, 1, 2].includes(index)) return res.status(400).json({ error: "contact_index must be 0, 1 or 2" });
+  const wallet = envWallet(`CONTACT${index + 1}_PRIVATE_KEY`);
+  if (!wallet) return res.status(500).json({ error: `CONTACT${index + 1}_PRIVATE_KEY missing in the keeper's .env` });
+  try {
+    const onChain: string = await readVault.trustedContacts(index);
+    // Safety: the key we'd sign with must belong to exactly this on-chain contact
+    if (onChain.toLowerCase() !== wallet.address.toLowerCase()) {
+      return res.status(409).json({ error: `Key for contact ${index + 1} (${wallet.address}) is not on-chain contact ${index + 1} (${onChain})` });
+    }
+  } catch (e: any) {
+    return res.status(502).json({ error: `chain read failed: ${e?.shortMessage || e?.message}` });
+  }
+  return sendAs(res, `confirmDeath (contact ${index + 1})`, wallet, (v, o) => v.confirmDeath(o));
+});
+
+// Demo only: back to a fresh ACTIVE vault so the demo can be rerun (not in the original interface;
+// the backend's /demo/reset can call it). RELEASED -> resetDemo(), GRACE/CONFIRMED -> cancel().
+app.post("/demo/reset", async (_req, res) => {
+  if (!CUSTODIAL) return custodialOff(res, "Demo reset");
+  const owner = envWallet("OWNER_PRIVATE_KEY");
+  if (!owner) return res.status(500).json({ error: "OWNER_PRIVATE_KEY missing in the keeper's .env" });
+  try {
+    const { s } = await onChainStatus();
+    if (!s.demoMode) return res.status(409).json({ error: "Not a demo deployment" });
+    const state = Number(s.state);
+    if (state === 3) return sendAs(res, "resetDemo", owner, (v, o) => v.resetDemo(o));
+    if (state === 1 || state === 2) return sendAs(res, "cancel", owner, (v, o) => v.cancel(o));
+    return sendAs(res, "checkIn", owner, (v, o) => v.checkIn(o)); // ACTIVE: just restart the clock
+  } catch (e: any) {
+    return res.status(502).json({ error: `chain read failed: ${e?.shortMessage || e?.message}` });
+  }
+});
 
 app.post("/demo/miss-deadline", async (_req, res) => {
   try {
@@ -307,6 +397,7 @@ export function startAdapter() {
   app.listen(ADAPTER_PORT, ADAPTER_HOST, () => {
     const allow = ALLOWED_IPS.length ? `localhost + ${ALLOWED_IPS.join(", ")}` : "localhost only";
     console.log(`[adapter] Amanat backend interface on http://${ADAPTER_HOST}:${ADAPTER_PORT} (${allow})`);
+    console.log(`[adapter] custodial signing for /checkin and /confirm: ${CUSTODIAL ? "ON (demo: keeper signs with owner/contact keys from .env)" : "off"}`);
     if (ADAPTER_HOST !== "127.0.0.1" && !ALLOWED_IPS.length) {
       console.log("[adapter] WARNING: listening on the network but ADAPTER_ALLOWED_IPS is empty, so only localhost is accepted");
     }

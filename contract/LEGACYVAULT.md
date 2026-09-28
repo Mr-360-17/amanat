@@ -194,8 +194,15 @@ the real backend: `/status` is served from the keeper, and `/demo/load` puts the
 | `POST /vault-hash`, `/activate` | Keeper stores the hash on-chain. Skipped if it's already the current hash. |
 | `POST /contacts`, `/contact-status` | Names and relations saved **off-chain** (`agent/data/circle.json`, no phone numbers) for display. On-chain wallets unchanged. |
 | `POST /beneficiaries` | Acknowledged. Names and shares never go on-chain. |
-| `POST /checkin`, `/confirm` | **501**: they need the owner's or a contact's signature. Keeper-side signing is not enabled. |
+| `POST /checkin` | **Demo custodial:** the keeper signs `checkIn()` with the owner key from `.env`. In GRACE/CONFIRMED this cancels. |
+| `POST /confirm {contact_index}` | **Demo custodial:** the keeper signs `confirmDeath()` with that contact's key, after checking it's the on-chain contact. Too early or a repeat gives 409. |
+| `POST /demo/reset` | **Demo custodial**, demo mode only: RELEASED → `resetDemo()`, GRACE/CONFIRMED → `cancel()`. The backend's `/demo/reset` can call this. |
 | `POST /demo/miss-deadline` | No transaction (a real chain's clock can't be skipped). With demo timers, grace starts automatically within about 35 s. |
+
+**Custodial signing is demo-only and opt-in** (`ADAPTER_CUSTODIAL=true`; default `false`, which makes those routes return 501).
+The keeper process then holds the owner's and contacts' testnet keys. In production, everyone signs with their own wallet.
+Tested through the real backend: owner check-in → keeper grace → an unaccepted contact is refused (backend 403)
+→ early confirm refused (409) → 2 accepted contacts confirm → keeper release → family SMS + beneficiary view unlocked.
 
 **Security:** the backend sends no auth header, so the adapter only accepts `127.0.0.1` by default. If the backend
 runs on another laptop, set `ADAPTER_HOST=0.0.0.0` and `ADAPTER_ALLOWED_IPS=<backend laptop IP>`.
