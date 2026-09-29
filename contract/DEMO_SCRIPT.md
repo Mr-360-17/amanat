@@ -34,9 +34,9 @@ in a terminal. The same flows run from CLI wallets, and the UI still updates liv
 > one person or company, and without releasing it by mistake. LegacyVault puts that decision in a
 > smart contract on MST, with an autonomous agent that enforces the timeline."
 
-### 0:20 – The dashboard + a check-in (30 s), `/protection`, profile A
+### 0:20 – The dashboard + a check-in (60 s), `/protection`, profile A
 Click **I'M STILL HERE**. Show *Submitted → Confirming → Confirmed* and the tx link. The countdown resets to 30 s.
-> "The owner checks in regularly. In real use that's every 30 days; for the demo it's 30 seconds.
+> "The owner checks in regularly. In real use that's every 30 days; for the demo it's 60 seconds.
 > That was a real transaction on MST."
 Point at: **ACTIVE** badge, trusted contacts, beneficiaries, vault hash, **AUTONOMOUS AGENT 🟢 MONITORING**.
 > "Only addresses, timestamps and a hash are on-chain. No personal data, and no money."

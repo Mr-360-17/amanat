@@ -1,10 +1,10 @@
 {
   "network": "mst",
   "chainId": 91562037,
-  "address": "0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd",
-  "deployBlock": 5789851,
-  "deployTxHash": "0xe47aa95f0c527ac4019a05655ba3dc6a4525bbb6a0eb1f498c849c92af79969e",
-  "deployedAt": "2026-09-28T19:47:08.932Z",
+  "address": "0x9037DaF86528205F84572B93BdeCb4EA8fE8557A",
+  "deployBlock": 5802714,
+  "deployTxHash": "0x1e3d0f11649678cd0c15d4f8fb92a8b097603a532267b69407fe600c30a9749f",
+  "deployedAt": "2026-09-29T06:30:10.182Z",
   "owner": "0x8366ca68E48eaEf0786C69CA1D67a94399FFD722",
   "keeper": "0xa4e52e959F0aa6D79fb4eBFC5076bd0Bf85F8432",
   "trustedContacts": [
@@ -18,8 +18,8 @@
   ],
   "params": {
     "demoMode": true,
-    "checkInPeriod": 30,
-    "gracePeriod": 30,
-    "releaseDelay": 15
+    "checkInPeriod": 60,
+    "gracePeriod": 60,
+    "releaseDelay": 20
   }
 }

@@ -108,7 +108,7 @@ with a warning banner. Production: multiple RPC providers with failover.
 
 ## Numbers to remember
 - **26** passing contract tests. Both demo scenarios pass **twice in a row** with real txs **on MST Testnet**.
-- Contract `0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd` (deploy block 5789851), with the Trusted Circle `acceptRole` enforced on-chain. Keeper: 7 MST txs for about 0.00035 tMSTC.
-- Demo timers **30 s / 30 s / 15 s**; normal **30 d / 7 d / 2 d**.
+- Contract `0x9037DaF86528205F84572B93BdeCb4EA8fE8557A` (deploy block 5802714), with the Trusted Circle `acceptRole` enforced on-chain. Keeper: 7 MST txs for about 0.00035 tMSTC.
+- Demo timers **60 s / 60 s / 20 s**; normal **30 d / 7 d / 2 d**.
 - Keeper checks every **5 s** and uses **block time**. OFFLINE after **3** missed intervals.
 - MST Testnet chain ID **91562037**. Legacy (type 0) txs at **1 gwei**.

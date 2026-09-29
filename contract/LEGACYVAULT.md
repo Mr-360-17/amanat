@@ -31,7 +31,7 @@ release it has come, without trusting a single person or company, and without re
 
 LegacyVault turns that decision into a transparent, rule-based process:
 
-1. **Check-in.** The owner proves they're alive by clicking *"I'M STILL HERE"* (demo: every 30 s; real: every 30 days).
+1. **Check-in.** The owner proves they're alive by clicking *"I'M STILL HERE"* (demo: every 60 s; real: every 30 days).
 2. **Grace.** If a check-in is missed, the **keeper agent** starts a grace period. The owner can still respond.
 3. **Confirmation.** Only after grace ends can the **trusted contacts** confirm. **2 of 3** must agree.
 4. **Safety delay.** After confirmation, a short delay gives a living owner one last chance to cancel.
@@ -212,7 +212,8 @@ runs on another laptop, set `ADAPTER_HOST=0.0.0.0` and `ADAPTER_ALLOWED_IPS=<bac
 
 | Network | Contract | Deploy block | Explorer |
 |---|---|---|---|
-| **MST Testnet (91562037)**, current, with `acceptRole` | [`0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd`](https://testnet.mstscan.com/address/0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd) | 5789851 | [deploy tx](https://testnet.mstscan.com/tx/0xe47aa95f0c527ac4019a05655ba3dc6a4525bbb6a0eb1f498c849c92af79969e) |
+| **MST Testnet (91562037)**, current, demo timers 60 s / 60 s / 20 s | [`0x9037DaF86528205F84572B93BdeCb4EA8fE8557A`](https://testnet.mstscan.com/address/0x9037DaF86528205F84572B93BdeCb4EA8fE8557A) | 5802714 | see contract page |
+| MST Testnet, second version (retired, 30 s / 30 s / 15 s) | `0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd` | 5789851 | - |
 | MST Testnet, first version (retired, no `acceptRole`) | `0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D` | 5787822 | - |
 | Local Hardhat (31337) | any `npm run deploy` with `NETWORK=local` | - | n/a |
 
@@ -242,7 +243,7 @@ DEMO_SCRIPT.md, JUDGES_QA.md  demo run-sheet and judge Q&A
 
 ## Limitations (honest list)
 
-- **Prototype on testnet** with demo timers (30 s / 30 s / 15 s). Not audited.
+- **Prototype on testnet** with demo timers (60 s / 60 s / 20 s). Not audited.
 - **One contract per owner**, and contacts must have a wallet with a little gas to confirm.
 - **Keeper key can overwrite the vault hash** (by design, so the backend can update it). A compromised keeper
   key could store a wrong hash, but could not release anything early. Production: owner-signed hashes or a hash history.
