@@ -91,11 +91,13 @@ def _same_person(old: dict, new: dict) -> bool:
     return old["name"].strip().lower() == new["name"].strip().lower()
 
 
-def set_contacts(state: dict, contacts: list[dict]) -> list[dict]:
+def set_contacts(state: dict, contacts: list[dict], tokens: dict[str, str] | None = None) -> list[dict]:
     """Replace the circle. People already in it keep their acceptance; new people are
-    invited. Returns the notifications sent."""
+    invited. `tokens` (name -> token) lets the demo reuse the same links after a reset.
+    Returns the notifications sent."""
     _ensure(state)
     old = state["contacts"]
+    tokens = tokens or {}
     result, sent = [], []
     for i, new in enumerate(contacts):
         match = next((c for c in old if _same_person(c, new)), None)
@@ -104,7 +106,8 @@ def set_contacts(state: dict, contacts: list[dict]) -> list[dict]:
         else:
             c = {"name": new["name"], "relation": new["relation"], "phone": new.get("phone"),
                  "wallet": new.get("wallet"), "status": PENDING,
-                 "token": secrets.token_urlsafe(12), "invited_at": None, "accepted_at": None,
+                 "token": tokens.get(new["name"]) or secrets.token_urlsafe(12),
+                 "invited_at": None, "accepted_at": None,
                  "last_seen_at": None, "ping_pending_since": None}
         c["id"], c["index"] = f"C{i + 1}", i
         result.append(c)

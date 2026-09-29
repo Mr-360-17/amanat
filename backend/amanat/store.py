@@ -6,6 +6,8 @@ from collections import Counter
 from . import circle, config, family, vault
 from .schema import Asset, Beneficiary, canonical_asset_type, category, mask_account
 
+DEMO_LINKS = config.DATA_DIR / "demo_links.json"
+
 _EMPTY = {"assets": [], "contacts": [], "profile": {}, "notifications": [], "family": []}
 
 
@@ -149,12 +151,24 @@ class Store:
         def mock(name):
             return json.loads((config.MOCK_DIR / name).read_text(encoding="utf-8"))
 
+        # The demo phones keep the same links across Reset -> Load and backend restarts:
+        # the first Load creates them, later Loads reuse them (backend/data/demo_links.json,
+        # same protection level as the vault key next to it; not in git).
+        saved = {"contacts": {}, "family": {}}
+        if DEMO_LINKS.exists():
+            saved.update(json.loads(DEMO_LINKS.read_text(encoding="utf-8")))
+
         with self._lock:
             self._state = json.loads(json.dumps(_EMPTY))
             self._state["assets"] = mock("assets.json")
             circle.set_profile(self._state, mock("profile.json"))
             # Contacts start as "pending" so the demo can show them accepting live.
-            circle.set_contacts(self._state, mock("contacts.json"))
-            family.sync(self._state)
+            circle.set_contacts(self._state, mock("contacts.json"), tokens=saved["contacts"])
+            family.sync(self._state, tokens=saved["family"])
             self._commit()
+            config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+            DEMO_LINKS.write_text(json.dumps({
+                "contacts": {c["name"]: c["token"] for c in self._state["contacts"]},
+                "family": {m["name"]: m["token"] for m in self._state["family"]},
+            }, indent=2), encoding="utf-8")
         return self.summary()

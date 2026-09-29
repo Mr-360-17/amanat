@@ -51,6 +51,20 @@ def test_family_list_is_owner_only_and_bad_links_fail(links):
     assert stranger.get("/family/not-a-real-token").status_code == 404
 
 
+def test_demo_links_stay_the_same_across_reset_and_load(links):
+    contacts = {c["name"]: c["invite_url"] for c in client.get("/contacts").json()["contacts"]}
+    tok = contacts["Suresh Iyer"].rsplit("/", 1)[-1]
+    stranger.post(f"/circle/{tok}/accept")
+    client.post("/demo/reset")
+    client.post("/demo/load")
+    again = {c["name"]: c["invite_url"] for c in client.get("/contacts").json()["contacts"]}
+    fam = {m["name"]: m["family_url"].rsplit("/", 1)[-1] for m in client.get("/family").json()}
+    assert again == contacts and fam == links
+    # same link, fresh round: the phone just taps Accept again
+    view = stranger.get(f"/circle/{tok}").json()
+    assert view["contact"]["status"] == "pending"
+
+
 def test_link_survives_split_changes(links):
     client.post("/beneficiaries", json={"asset_id": "A1", "beneficiaries": [
         {"name": "Sunita Kumar", "relation": "Wife", "share": 50},

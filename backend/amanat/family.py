@@ -16,9 +16,11 @@ def _key(name: str) -> str:
     return " ".join(name.lower().split())
 
 
-def sync(state: dict) -> list[dict]:
+def sync(state: dict, tokens: dict[str, str] | None = None) -> list[dict]:
     """Make sure every person named as a beneficiary on any asset has a private link.
-    Existing people keep their token; people no longer named are dropped."""
+    Existing people keep their token; people no longer named are dropped. `tokens`
+    (name -> token) lets the demo reuse the same links after a reset."""
+    tokens = tokens or {}
     state.setdefault("family", [])
     existing = {_key(m["name"]): m for m in state["family"]}
     phones = {_key(p["name"]): p.get("phone") for p in state.get("profile", {}).get("family", [])
@@ -30,7 +32,8 @@ def sync(state: dict) -> list[dict]:
             if k in seen:
                 continue
             seen.add(k)
-            m = existing.get(k) or {"token": secrets.token_urlsafe(12), "notified_at": None}
+            m = existing.get(k) or {"token": tokens.get(b["name"]) or secrets.token_urlsafe(12),
+                                    "notified_at": None}
             members.append({**m, "name": b["name"], "relation": b.get("relation"),
                             "phone": phones.get(k) or m.get("phone")})
     state["family"] = members
