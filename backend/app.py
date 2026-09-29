@@ -479,6 +479,8 @@ def miss_deadline():
 def demo_load():
     """Load Ramesh's agreed dataset without uploading (frontend dev / emergency fallback)."""
     result = store.load_demo()
+    # Tell the keeper who the circle is, same as saving contacts by hand does.
+    bridges.push_contacts(store.read(_circle_view)["contacts"])
     _commit_hash()
     return result
 
@@ -487,7 +489,10 @@ def demo_load():
 def demo_reset():
     store.reset()
     bridges.clear_simulation()
-    return {"ok": True}
+    # Put the contract back to ACTIVE too (RELEASED -> resetDemo, GRACE/CONFIRMED -> cancel),
+    # otherwise the next rehearsal starts from yesterday's RELEASED vault.
+    chain = bridges.keeper_action("/demo/reset", {}) if bridges.keeper_online() else None
+    return {"ok": True, "chain": chain}
 
 
 @app.post("/demo/simulate-release")

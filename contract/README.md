@@ -16,6 +16,9 @@ The contract and the keeper agent live here. The backend talks to the keeper ove
 | POST | `/checkin` | `{}` | Check-in button → `checkIn()` / `cancel()` during grace |
 | POST | `/confirm` | `{"contact_index": 0-2}` | Trusted contact confirms on phone → `confirmDeath()` |
 | POST | `/demo/miss-deadline` | `{}` | Demo button: jump the clock past the deadline |
+| POST | `/demo/reset` | `{}` | Backend's "Reset" button: contract back to ACTIVE (added by Pratham's adapter) |
+
+**Errors:** answer with a JSON body `{"error": "<human-readable reason>"}`. The backend shows that text to the user (e.g. on a contact's phone). The vault hash is sent from a background worker, so `/vault-hash` may wait for the block. Contacts are sent **without** phone numbers.
 
 The frontend calls the **backend** (`http://localhost:8000/checkin` etc.) and the backend forwards the request to you. That way Ananya only has one base URL.
 

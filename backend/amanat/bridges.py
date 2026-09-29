@@ -17,6 +17,7 @@ Until it is running, status/txlog come from shared/mock and actions are logged l
 """
 import importlib.util
 import json
+import threading
 from datetime import datetime, timezone
 
 import httpx
@@ -71,28 +72,73 @@ def keeper_online() -> bool:
     return bool(config.KEEPER_URL)
 
 
-def _post(path: str, payload: dict, event: str, details: str) -> dict:
+def _keeper_error(e: httpx.HTTPError) -> str:
+    """The keeper's own explanation (e.g. "The grace period hasn't ended yet") when it
+    sent one, instead of httpx's generic "Client error '409 Conflict' for url ..."."""
+    resp = getattr(e, "response", None)
+    if resp is not None:
+        try:
+            body = resp.json()
+            msg = body.get("error") or body.get("detail") if isinstance(body, dict) else None
+            if msg:
+                return str(msg)
+        except ValueError:
+            pass
+        return f"keeper answered HTTP {resp.status_code}"
+    return f"keeper unreachable ({type(e).__name__})"
+
+
+def _post(path: str, payload: dict, event: str, details: str, timeout: float = 30) -> dict:
     if keeper_online():
         try:
-            r = httpx.post(f"{config.KEEPER_URL}{path}", json=payload, timeout=30)
+            r = httpx.post(f"{config.KEEPER_URL}{path}", json=payload, timeout=timeout)
             r.raise_for_status()
             return {"ok": True, "forwarded": True, "keeper": r.json() if r.content else None}
         except httpx.HTTPError as e:
+            msg = _keeper_error(e)
             _local_log.append({"event": event, "tx_hash": None, "timestamp": _now(),
-                               "explorer_url": None, "details": f"{details} (keeper error: {e})"})
-            return {"ok": False, "forwarded": False, "error": str(e)}
+                               "explorer_url": None, "details": f"{details} (keeper error: {msg})"})
+            return {"ok": False, "forwarded": False, "error": msg}
     _local_log.append({"event": event, "tx_hash": None, "timestamp": _now(),
                        "explorer_url": None, "details": f"{details} (keeper offline, not on-chain)"})
     return {"ok": True, "forwarded": False}
 
 
+# Storing the vault hash on-chain waits for a block (up to ~60 s on MST), so it runs on a
+# background worker instead of inside the request. Only the newest hash matters: if the
+# vault changes 5 times while one transaction is pending, only the latest is sent next.
+_hash_lock = threading.Condition()
+_hash_pending: str | None = None
+_hash_worker: threading.Thread | None = None
+
+
+def _hash_loop():
+    global _hash_pending
+    while True:
+        with _hash_lock:
+            while _hash_pending is None:
+                _hash_lock.wait()
+            h, _hash_pending = _hash_pending, None
+        _post("/vault-hash", {"hash": h}, "VaultHashStored", f"Vault hash {h[:12]}...", timeout=70)
+
+
 def push_vault_hash(vault_hash: str) -> dict:
-    return _post("/vault-hash", {"hash": vault_hash}, "VaultHashStored", f"Vault hash {vault_hash[:12]}...")
+    global _hash_pending, _hash_worker
+    if not keeper_online():
+        return _post("/vault-hash", {"hash": vault_hash}, "VaultHashStored", f"Vault hash {vault_hash[:12]}...")
+    with _hash_lock:
+        _hash_pending = vault_hash
+        if _hash_worker is None or not _hash_worker.is_alive():
+            _hash_worker = threading.Thread(target=_hash_loop, daemon=True, name="vault-hash")
+            _hash_worker.start()
+        _hash_lock.notify()
+    return {"ok": True, "forwarded": True, "queued": True}
 
 
 def push_contacts(contacts: list[dict]) -> dict:
-    # Invite links carry the contact's secret token: never send them off this machine.
-    safe = [{k: c.get(k) for k in ("index", "name", "relation", "phone", "wallet", "status")}
+    # Invite links carry the contact's secret token, and the keeper has no use for phone
+    # numbers: send only what it displays.
+    safe = [{k: c.get(k) for k in ("index", "name", "relation", "wallet", "status")}
             for c in contacts]
     return _post("/contacts", {"contacts": safe}, "TrustedContactsSet", f"{len(safe)} trusted contacts")
 
@@ -113,11 +159,12 @@ def keeper_action(path: str, payload: dict) -> dict:
         return {"ok": False, "forwarded": False,
                 "error": "Keeper agent not connected (set AMANAT_KEEPER_URL)."}
     try:
-        r = httpx.post(f"{config.KEEPER_URL}{path}", json=payload, timeout=60)
+        # The keeper waits up to ~55 s for the block before answering.
+        r = httpx.post(f"{config.KEEPER_URL}{path}", json=payload, timeout=65)
         r.raise_for_status()
         return {"ok": True, "forwarded": True, "keeper": r.json() if r.content else None}
     except httpx.HTTPError as e:
-        return {"ok": False, "forwarded": False, "error": str(e)}
+        return {"ok": False, "forwarded": False, "error": _keeper_error(e)}
 
 
 def _mock(name: str):
