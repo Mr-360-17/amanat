@@ -118,18 +118,24 @@ function EmergencyPanel({ view, token, refresh }) {
 
 function DeathConfirm({ owner, token }) {
   const [step, setStep] = useState(0);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null); // { ok, text }
   const first = firstName(owner);
-  if (result) return <div className="m-card"><div className="confirmed-icon"><Check /></div><h2>Confirmation recorded</h2>
-    <p>{result}</p></div>;
+  if (result?.ok) return <div className="m-card"><div className="confirmed-icon"><Check /></div><h2>Confirmation recorded</h2>
+    <p>{result.text}</p></div>;
+  // A refusal must never look like success: the contract may say "too early" (grace
+  // period still running) or the keeper may be busy. Show why, and let them retry.
+  if (result) return <div className="m-card danger-zone"><div className="alert-icon"><AlertTriangle /></div>
+    <h2>Not recorded yet</h2><p>{result.text}</p>
+    <button className="ghost" onClick={() => { setResult(null); setStep(1); }}>Try again</button></div>;
   return <div className="m-card danger-zone"><span className="eyebrow">ONLY IF {first.toUpperCase()} HAS PASSED AWAY</span>
     {step === 0 ? <button className="ghost" onClick={() => setStep(1)}>Confirm {first}'s passing…</button>
       : <><div className="alert-icon"><AlertTriangle /></div><h2>Confirm {owner}'s passing?</h2>
         <p>This is a serious declaration. Confirm only if you know it to be true. It is recorded with your name and time, and nothing is released unless a second trusted contact also confirms.</p>
         <ActionButton className="danger" onClick={async () => {
           const r = await publicApi(`/circle/${token}/confirm`, { method: 'POST' });
-          setResult(r.ok ? 'Thank you. One more trusted contact must independently confirm before anything is released.'
-            : `Your confirmation could not be recorded on-chain yet: ${r.error || 'the blockchain keeper is not connected'}.`);
+          setResult(r.ok
+            ? { ok: true, text: 'Thank you. It is recorded on the blockchain. Nothing is released unless a second trusted contact also confirms.' }
+            : { ok: false, text: `The blockchain did not accept it: ${r.error || 'the blockchain keeper is not connected'}. Nothing was recorded.` });
         }}>Yes, I confirm</ActionButton>
         <button className="ghost" onClick={() => setStep(0)}>Go back</button></>}
   </div>;
