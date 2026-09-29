@@ -5,14 +5,18 @@ Provides claim guidance based on the institution and asset type.
 This module is loaded automatically by the Amanat backend.
 """
 
+# SBI moved from sbi.co.in to sbi.bank.in (the old link redirects here).
+SBI_CLAIM_FORM = ("https://sbi.bank.in/documents/26274/68559/Application%20Form%20for%20Settlement"
+                  "%20of%20Claim%20of%20Deceased%20Constituents%20%26%20Annexures.pdf/"
+                  "8bb2b559-33ca-1784-ac2a-65dea0bdc6b6?t=1601702302029")
+# EPFO rebuilt its site (epfindia.gov.in -> epfo.gov.in) and old PDF paths now return 404,
+# so link the official homepage and name the exact form in the steps.
+EPFO_HOME = "https://www.epfo.gov.in/"
+
 OFFICIAL_SOURCES = {
     "SBI": {
-        "Savings Account": [
-            "https://sbi.co.in/documents/26274/68559/Application%20Form%20for%20Settlement%20of%20Claim%20of%20Deceased%20Constituents%20%26%20Annexures.pdf/8bb2b559-33ca-1784-ac2a-65dea0bdc6b6?t=1601702302029"
-        ],
-        "Fixed Deposit": [
-            "https://sbi.co.in/documents/26274/68559/Application%20Form%20for%20Settlement%20of%20Claim%20of%20Deceased%20Constituents%20%26%20Annexures.pdf/8bb2b559-33ca-1784-ac2a-65dea0bdc6b6?t=1601702302029"
-        ]
+        "Savings Account": [SBI_CLAIM_FORM],
+        "Fixed Deposit": [SBI_CLAIM_FORM],
     },
     "LIC": {
         "Life Insurance": [
@@ -20,15 +24,26 @@ OFFICIAL_SOURCES = {
         ]
     },
     "EPFO": {
-        "EPF": [
-           "https://www.epfindia.gov.in/site_docs/PDFs/Downloads_PDFs/Form_CCF_death.pdf"
-        ]
+        "EPF": [EPFO_HOME]
     },
     "HDFC Mutual Fund": {
         "Mutual Fund": [
            "https://www.amfiindia.com/investor/become-mf-distributor?zoneName=deathOfUnitHolder"
         ]
     }
+}
+
+
+INSTITUTION_ALIASES = {
+    "state bank of india": "sbi",
+    "sbi bank": "sbi",
+    "life insurance corporation": "lic",
+    "life insurance corporation of india": "lic",
+    "lic of india": "lic",
+    "employees' provident fund organisation": "epfo",
+    "employees provident fund organisation": "epfo",
+    "employees' provident fund organization": "epfo",
+    "epf": "epfo",
 }
 
 
@@ -51,8 +66,9 @@ def get_claim_guide(asset: dict) -> dict:
     asset_type = str(asset.get("asset_type", "")).strip()
     nominee = asset.get("nominee")
 
-    # Normalize common variations
-    institution_key = institution.lower()
+    # Normalize common variations: the AI extractor may return the full name
+    # ("State Bank of India") instead of the short one ("SBI").
+    institution_key = INSTITUTION_ALIASES.get(" ".join(institution.lower().split()), institution.lower())
     asset_type_key = asset_type.lower()
 
     # ---------------------------------------------------------
@@ -158,7 +174,7 @@ def get_claim_guide(asset: dict) -> dict:
     if institution_key == "epfo" and asset_type_key == "epf":
         steps = [
             "Obtain the member's death certificate.",
-            "Complete the applicable EPFO death-claim forms.",
+            "Complete EPFO's Composite Claim Form (Death Cases), which covers PF, pension and EDLI insurance.",
             "Submit the required claimant/nominee identity documents.",
             "Submit bank details required for settlement.",
             "Submit the claim through the applicable EPFO/employer process."
@@ -166,7 +182,7 @@ def get_claim_guide(asset: dict) -> dict:
 
         documents = [
             "Death certificate",
-            "EPFO death-claim form",
+            "Composite Claim Form (Death Cases)",
             "Nominee/claimant identity proof",
             "Bank details"
         ]
@@ -180,9 +196,7 @@ def get_claim_guide(asset: dict) -> dict:
         return {
             "steps": steps,
             "documents": documents,
-            "sources": [
-                "https://www.epfindia.gov.in/site_docs/PDFs/Downloads_PDFs/Form_CCF_death.pdf"
-            ],
+            "sources": OFFICIAL_SOURCES["EPFO"]["EPF"],
             "disclaimer": "Guidance only, not legal advice."
         }
 
