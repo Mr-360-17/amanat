@@ -26,6 +26,8 @@ const ACTION_LABELS: Record<string, string> = {
   VaultReleased: "Vault released",
   VaultCancelled: "Release cancelled / reset",
   VaultHashStored: "Vault hash stored",
+  ContactRoleAccepted: "Contact accepted the role",
+  ContactRoleDeclined: "Contact declined the role",
 };
 
 function describeLog(log: EventLog): string {

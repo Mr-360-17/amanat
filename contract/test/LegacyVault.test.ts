@@ -23,11 +23,13 @@ describe("LegacyVault", function () {
     return { vault, owner, keeper, c1, c2, c3, b1, b2, stranger };
   }
 
-  // Vault with trusted contacts + beneficiaries already set
+  // Vault with trusted contacts + beneficiaries set; contacts 1 and 2 accepted the role, 3 did not
   async function configuredFixture() {
     const f = await deployFixture();
     await f.vault.setTrustedContacts([f.c1.address, f.c2.address, f.c3.address]);
     await f.vault.setBeneficiaries([f.b1.address, f.b2.address]);
+    await f.vault.connect(f.c1).acceptRole();
+    await f.vault.connect(f.c2).acceptRole();
     return f;
   }
 
@@ -333,10 +335,69 @@ describe("LegacyVault", function () {
     const Vault = await ethers.getContractFactory("LegacyVault");
     const prod = await Vault.deploy(keeper.address, CHECKIN, GRACE_PERIOD, RELEASE_DELAY, false);
     await prod.setTrustedContacts([c1.address, c2.address, stranger.address]);
+    await prod.connect(c1).acceptRole();
+    await prod.connect(c2).acceptRole();
     await toConfirmed(prod, c1, c2);
     await time.increase(RELEASE_DELAY);
     await prod.release();
     await expect(prod.resetDemo()).to.be.revertedWithCustomError(prod, "NotDemoMode");
+  });
+
+  // ---------------- Trusted Circle: acceptRole / declineRole ----------------
+
+  it("21. a contact must accept the role before confirming", async function () {
+    const { vault, c3 } = await loadFixture(configuredFixture);
+    await toGraceOver(vault);
+    // contact 3 never accepted
+    await expect(vault.connect(c3).confirmDeath()).to.be.revertedWithCustomError(vault, "ContactNotAccepted");
+    await expect(vault.connect(c3).acceptRole()).to.emit(vault, "ContactRoleAccepted").withArgs(c3.address, anyValue);
+    await expect(vault.connect(c3).confirmDeath()).to.emit(vault, "TrustedContactConfirmed");
+  });
+
+  it("22. declining stops future confirmations but keeps one already given", async function () {
+    const { vault, c1, c2 } = await loadFixture(configuredFixture);
+    await toGraceOver(vault);
+    await vault.connect(c1).confirmDeath();
+    await expect(vault.connect(c1).declineRole()).to.emit(vault, "ContactRoleDeclined");
+    expect(await vault.confirmationCount()).to.equal(1n); // still counts this round
+    expect(await vault.isAccepted(c1.address)).to.equal(false);
+
+    // next round: c1 can no longer confirm until they accept again
+    await vault.checkIn();
+    await toGraceOver(vault);
+    await expect(vault.connect(c1).confirmDeath()).to.be.revertedWithCustomError(vault, "ContactNotAccepted");
+    await vault.connect(c2).confirmDeath(); // c2 still accepted
+    expect(await vault.confirmationCount()).to.equal(1n);
+  });
+
+  it("23. replacing the contact list clears all acceptances", async function () {
+    const { vault, c1, c2, c3 } = await loadFixture(configuredFixture);
+    expect(await vault.isAccepted(c1.address)).to.equal(true);
+    await vault.setTrustedContacts([c1.address, c2.address, c3.address]); // same people, new list
+    expect(await vault.isAccepted(c1.address)).to.equal(false);
+    expect(await vault.isAccepted(c2.address)).to.equal(false);
+    await toGraceOver(vault);
+    await expect(vault.connect(c1).confirmDeath()).to.be.revertedWithCustomError(vault, "ContactNotAccepted");
+  });
+
+  it("24. only trusted contacts can accept/decline, and not after release", async function () {
+    const { vault, owner, stranger, c1, c2, c3 } = await loadFixture(configuredFixture);
+    for (const s of [owner, stranger]) {
+      await expect(vault.connect(s).acceptRole()).to.be.revertedWithCustomError(vault, "NotTrustedContact");
+      await expect(vault.connect(s).declineRole()).to.be.revertedWithCustomError(vault, "NotTrustedContact");
+    }
+    await toConfirmed(vault, c1, c2);
+    await time.increase(RELEASE_DELAY);
+    await vault.release();
+    await expect(vault.connect(c3).acceptRole()).to.be.revertedWithCustomError(vault, "InvalidState");
+    await expect(vault.connect(c1).declineRole()).to.be.revertedWithCustomError(vault, "InvalidState");
+  });
+
+  it("25. getStatus reports who accepted", async function () {
+    const { vault, c3 } = await loadFixture(configuredFixture);
+    expect((await vault.getStatus()).contactAccepted).to.deep.equal([true, true, false]);
+    await vault.connect(c3).acceptRole();
+    expect((await vault.getStatus()).contactAccepted).to.deep.equal([true, true, true]);
   });
 
   // Extra: constructor validation

@@ -127,6 +127,7 @@ export default function Protection() {
           {status.trustedContacts.map((c, i) => (
             <Row key={c + i} label={`Trusted contact ${i + 1}`}>
               <Address addr={c} you={sameAddr(wallet.account, c)} />{" "}
+              {status.contactAccepted[i] ? <span className="tag">accepted</span> : <span className="tag">not accepted</span>}
               {status.confirmedBy[i] && <span className="tag tag-ok">confirmed</span>}
             </Row>
           ))}

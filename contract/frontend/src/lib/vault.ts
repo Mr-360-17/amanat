@@ -31,6 +31,7 @@ export interface VaultStatus {
   demoMode: boolean;
   round: number;
   confirmedBy: boolean[]; // per trusted contact, this round
+  contactAccepted: boolean[]; // Trusted Circle: accepted the role on-chain
 }
 
 export async function fetchStatus(): Promise<{ status: VaultStatus; chainTime: number; block: number }> {
@@ -54,6 +55,7 @@ export async function fetchStatus(): Promise<{ status: VaultStatus; chainTime: n
       releaseAvailableAt: Number(s.releaseAvailableAt),
       trustedContacts: contacts,
       confirmedBy,
+      contactAccepted: [...s.contactAccepted],
       confirmationCount: Number(s.confirmationCount),
       beneficiaries: [...s.beneficiaries],
       vaultHash: s.vaultHash,
@@ -93,6 +95,7 @@ export function explainError(e: any): string {
 const ERROR_TEXT: Record<string, string> = {
   NotOwner: "Only the vault owner can do this.",
   NotTrustedContact: "This wallet is not one of the 3 trusted contacts.",
+  ContactNotAccepted: "Accept the trusted-contact role first.",
   InvalidState: "Not allowed in the vault's current state.",
   GraceNotOver: "The grace period has not ended yet.",
   AlreadyConfirmed: "This contact already confirmed in this round.",

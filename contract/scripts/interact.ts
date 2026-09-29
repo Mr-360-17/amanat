@@ -2,6 +2,8 @@
 // Usage: npx tsx scripts/interact.ts <command>
 //   status             show full vault status (read-only)
 //   checkin            owner: "I'm still here"
+//   accept <1|2|3>     trusted contact N accepts the role (needed before confirming)
+//   decline <1|2|3>    trusted contact N declines the role
 //   confirm <1|2|3>    trusted contact N confirms death
 //   cancel             owner: cancel a pending release (GRACE/CONFIRMED)
 //   reset              owner: resetDemo (RELEASED -> ACTIVE, demo mode only)
@@ -47,7 +49,9 @@ async function showStatus() {
   console.log(`Grace deadline:    ${fmtTime(s.graceDeadline, now)}`);
   console.log(`Release available: ${fmtTime(s.releaseAvailableAt, now)}`);
   console.log(`Confirmations:     ${s.confirmationCount} / 2`);
-  s.trustedContacts.forEach((c: string, i: number) => console.log(`Contact ${i + 1}:         ${c}`));
+  s.trustedContacts.forEach((c: string, i: number) =>
+    console.log(`Contact ${i + 1}:         ${c}  ${s.contactAccepted[i] ? "(accepted)" : "(NOT accepted)"}`)
+  );
   console.log(`Beneficiaries:     ${s.beneficiaries.join(", ")}`);
   console.log(`Vault hash:        ${s.vaultHash}`);
   console.log(
@@ -73,6 +77,14 @@ async function main() {
     case "checkin":
       await send("checkIn", "OWNER_PRIVATE_KEY", async (v) => v.checkIn(await txOverrides()));
       return showStatus();
+
+    case "accept":
+    case "decline": {
+      if (!["1", "2", "3"].includes(arg)) throw new Error(`Usage: ${cmd} <1|2|3>`);
+      const fn = cmd === "accept" ? "acceptRole" : "declineRole";
+      await send(`${fn} (contact ${arg})`, `CONTACT${arg}_PRIVATE_KEY`, async (v) => v[fn](await txOverrides()));
+      return showStatus();
+    }
 
     case "confirm": {
       if (!["1", "2", "3"].includes(arg)) throw new Error("Usage: confirm <1|2|3>");
@@ -105,7 +117,7 @@ async function main() {
       return showStatus();
 
     default:
-      console.log("Commands: status | checkin | confirm <1|2|3> | cancel | reset | hash <hex> | grace | release");
+      console.log("Commands: status | checkin | accept <1|2|3> | decline <1|2|3> | confirm <1|2|3> | cancel | reset | hash <hex> | grace | release");
   }
 }
 

@@ -40,6 +40,7 @@ contract LegacyVault {
         bytes32 vaultHash;
         bool demoMode;
         uint256 round;
+        bool[3] contactAccepted; // has each trusted contact accepted the role?
     }
 
     // ------------------------------------------------------------------
@@ -70,6 +71,11 @@ contract LegacyVault {
     address[3] public trustedContacts;
     bool public contactsSet;
 
+    /// @notice contactsVersion => contact => accepted the role?
+    /// Bumped every time the contact list is replaced, so old acceptances never carry over.
+    mapping(uint256 => mapping(address => bool)) public hasAccepted;
+    uint256 public contactsVersion;
+
     /// @notice round => contact => confirmed?
     /// Bumping `round` on every reset makes old confirmations meaningless.
     mapping(uint256 => mapping(address => bool)) public hasConfirmed;
@@ -92,6 +98,8 @@ contract LegacyVault {
     event VaultReleased(address indexed caller, uint256 timestamp);
     event VaultCancelled(address indexed by, string reason, uint256 newRound, uint256 timestamp);
     event VaultHashStored(address indexed by, bytes32 vaultHash, uint256 timestamp);
+    event ContactRoleAccepted(address indexed contact, uint256 timestamp);
+    event ContactRoleDeclined(address indexed contact, uint256 timestamp);
 
     // ------------------------------------------------------------------
     // Errors
@@ -114,6 +122,7 @@ contract LegacyVault {
     error TooManyBeneficiaries();
     error ZeroHash();
     error NotDemoMode();
+    error ContactNotAccepted();
 
     // ------------------------------------------------------------------
     // Modifiers
@@ -210,6 +219,7 @@ contract LegacyVault {
 
         trustedContacts = _contacts;
         contactsSet = true;
+        contactsVersion += 1; // new list: every contact must accept (again)
 
         emit TrustedContactsUpdated(_contacts, block.timestamp);
     }
@@ -262,13 +272,32 @@ contract LegacyVault {
     }
 
     // ------------------------------------------------------------------
-    // Trusted contact action
+    // Trusted contact actions
     // ------------------------------------------------------------------
 
-    /// @notice A trusted contact confirms the owner's death. Only after the
-    ///         full grace window, once per contact per round. 2 of 3 => CONFIRMED.
+    /// @notice Trusted Circle: a contact agrees to the role. Required before they can
+    ///         ever confirm, so a stranger or an unaware person can't trigger a release.
+    function acceptRole() external {
+        if (!isTrustedContact(msg.sender)) revert NotTrustedContact();
+        if (state == State.RELEASED) revert InvalidState(state);
+        hasAccepted[contactsVersion][msg.sender] = true;
+        emit ContactRoleAccepted(msg.sender, block.timestamp);
+    }
+
+    /// @notice A contact steps down. Stops future confirmations; a confirmation already
+    ///         given in the current round still counts (keeps the rules simple and final).
+    function declineRole() external {
+        if (!isTrustedContact(msg.sender)) revert NotTrustedContact();
+        if (state == State.RELEASED) revert InvalidState(state);
+        hasAccepted[contactsVersion][msg.sender] = false;
+        emit ContactRoleDeclined(msg.sender, block.timestamp);
+    }
+
+    /// @notice A trusted contact who accepted the role confirms the owner's death. Only
+    ///         after the full grace window, once per contact per round. 2 of 3 => CONFIRMED.
     function confirmDeath() external {
         if (!isTrustedContact(msg.sender)) revert NotTrustedContact();
+        if (!hasAccepted[contactsVersion][msg.sender]) revert ContactNotAccepted();
         if (state != State.GRACE) revert InvalidState(state);
         if (block.timestamp <= graceDeadline) revert GraceNotOver();
         if (hasConfirmed[round][msg.sender]) revert AlreadyConfirmed();
@@ -292,6 +321,11 @@ contract LegacyVault {
     function isTrustedContact(address _addr) public view returns (bool) {
         if (!contactsSet) return false;
         return _addr == trustedContacts[0] || _addr == trustedContacts[1] || _addr == trustedContacts[2];
+    }
+
+    /// @notice Has `_contact` accepted the role for the current contact list?
+    function isAccepted(address _contact) external view returns (bool) {
+        return hasAccepted[contactsVersion][_contact];
     }
 
     /// @notice Has `_contact` confirmed in the current round?
@@ -322,6 +356,9 @@ contract LegacyVault {
         s.vaultHash = vaultHash;
         s.demoMode = demoMode;
         s.round = round;
+        for (uint256 i = 0; i < 3; i++) {
+            s.contactAccepted[i] = hasAccepted[contactsVersion][trustedContacts[i]];
+        }
     }
 
     // ------------------------------------------------------------------
