@@ -89,6 +89,14 @@ def test_phone_numbers_and_tokens_never_sent_to_keeper(keeper):
     assert "Suresh Iyer" in sent and "+91" not in sent and "invite" not in sent
 
 
+def test_txlog_never_falls_back_to_mock_when_keeper_connected(monkeypatch):
+    from amanat import config
+    monkeypatch.setattr(config, "KEEPER_URL", "http://127.0.0.1:9")  # nothing listens here
+    log = client.get("/txlog").json()
+    assert all("0xmock" not in str(t.get("tx_hash")) for t in log)
+    assert log[-1]["event"] == "LogUnavailable"
+
+
 def test_reset_also_resets_the_chain(keeper):
     r = client.post("/demo/reset").json()
     assert ("/demo/reset", {}) in keeper and r["chain"]["ok"] is True

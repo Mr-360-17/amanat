@@ -206,10 +206,15 @@ def status() -> dict:
 
 def txlog() -> list[dict]:
     if keeper_online():
+        # Reading all contract events can take a while when the chain is busy.
         try:
-            r = httpx.get(f"{config.KEEPER_URL}/txlog", timeout=10)
+            r = httpx.get(f"{config.KEEPER_URL}/txlog", timeout=30)
             r.raise_for_status()
             return r.json() + _local_log
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            # Never show mock rows when a real chain is connected: they would look like
+            # real transactions. Say plainly that the log couldn't be read this time.
+            return list(_local_log) + [{
+                "event": "LogUnavailable", "tx_hash": None, "timestamp": _now(), "explorer_url": None,
+                "details": f"Couldn't read the on-chain log just now ({_keeper_error(e)}). It refreshes automatically."}]
     return list(_local_log) or _mock("txlog.json")
