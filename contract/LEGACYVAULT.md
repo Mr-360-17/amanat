@@ -117,7 +117,8 @@ call them too. If the agent is offline, the process is only delayed, never corru
 - **Block time, not laptop time.** The keeper uses the latest block's timestamp for every deadline decision.
 - **Keys.** Throwaway testnet keys live only in `.env` (gitignored) and are never printed.
   `POST /vault/hash` requires a shared API key, compared in constant time.
-- **Tested.** 21 unit tests cover every rule and every unauthorized path (`npm test`).
+- **Trusted Circle on-chain.** A contact must call `acceptRole()` before `confirmDeath()` works (`ContactNotAccepted` otherwise). Replacing the contact list clears all acceptances, and `declineRole()` stops future confirmations.
+- **Tested.** 26 unit tests cover every rule and every unauthorized path (`npm test`).
 
 ## How to run
 
@@ -126,7 +127,7 @@ Requirements: **Node 20+**, a browser wallet (MetaMask or BridgeKey) for the UI,
 ```powershell
 npm install
 npm --prefix frontend install
-npm test                         # 21 passing
+npm test                         # 26 passing
 npm run wallets                  # creates .env with 5 throwaway wallets (prints addresses only)
 ```
 
@@ -211,7 +212,8 @@ runs on another laptop, set `ADAPTER_HOST=0.0.0.0` and `ADAPTER_ALLOWED_IPS=<bac
 
 | Network | Contract | Deploy block | Explorer |
 |---|---|---|---|
-| **MST Testnet (91562037)** | [`0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D`](https://testnet.mstscan.com/address/0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D) | 5787822 | [deploy tx](https://testnet.mstscan.com/tx/0xd5cfbee59852621d888bc6a186db8b3135040b954504d28556ee0a9600385471) |
+| **MST Testnet (91562037)**, current, with `acceptRole` | [`0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd`](https://testnet.mstscan.com/address/0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd) | 5789851 | [deploy tx](https://testnet.mstscan.com/tx/0xe47aa95f0c527ac4019a05655ba3dc6a4525bbb6a0eb1f498c849c92af79969e) |
+| MST Testnet, first version (retired, no `acceptRole`) | `0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D` | 5787822 | - |
 | Local Hardhat (31337) | any `npm run deploy` with `NETWORK=local` | - | n/a |
 
 Verified on MST with real transactions: the keeper auto-starts grace and auto-releases, and both demo scenarios
@@ -226,7 +228,7 @@ cycle costs well under 0.001 tMSTC.
 
 ```
 contracts/LegacyVault.sol     the contract
-test/LegacyVault.test.ts      21 tests (Hardhat + chai + time helpers)
+test/LegacyVault.test.ts      26 tests (Hardhat + chai + time helpers)
 scripts/                      generate-wallets, fund-wallets, deploy, interact, export-abi,
                               local-setup, scenario, common (shared helpers)
 agent/                        config, stateMachine (shared with UI), keeper, notifier, server

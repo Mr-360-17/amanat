@@ -86,8 +86,13 @@ async function freshStart() {
   if (state === RELEASED) await human("Reset demo", "OWNER", owner, (v, o) => v.resetDemo(o));
   else if (state === GRACE || state === CONFIRMED) await human("Cancel pending release", "OWNER", owner, (v, o) => v.cancel(o));
   else await human("Check-in (start clean)", "OWNER", owner, (v, o) => v.checkIn(o));
+  // Trusted Circle: contacts 1 and 2 must have accepted the role before they can confirm
+  const accepted: boolean[] = [...(await snapshot()).s.contactAccepted];
+  if (!accepted[0]) await human("Accept role (contact 1)", "CONTACT 1", contact1, (v, o) => v.acceptRole(o));
+  if (!accepted[1]) await human("Accept role (contact 2)", "CONTACT 2", contact2, (v, o) => v.acceptRole(o));
   const after = await snapshot();
   check(Number(after.s.state) === ACTIVE, "vault is ACTIVE with a fresh check-in deadline");
+  check(after.s.contactAccepted[0] && after.s.contactAccepted[1], "contacts 1 and 2 have accepted the role");
   return after;
 }
 

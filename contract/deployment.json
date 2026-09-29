@@ -1,10 +1,10 @@
 {
   "network": "mst",
   "chainId": 91562037,
-  "address": "0x0ABa512a119fc62E74468B78c93A1B7e1dD4507D",
-  "deployBlock": 5787822,
-  "deployTxHash": "0xd5cfbee59852621d888bc6a186db8b3135040b954504d28556ee0a9600385471",
-  "deployedAt": "2026-09-28T18:05:38.130Z",
+  "address": "0xB06b7eCBe33D83D1b3DC3fC91ebe4879FDb727Cd",
+  "deployBlock": 5789851,
+  "deployTxHash": "0xe47aa95f0c527ac4019a05655ba3dc6a4525bbb6a0eb1f498c849c92af79969e",
+  "deployedAt": "2026-09-28T19:47:08.932Z",
   "owner": "0x8366ca68E48eaEf0786C69CA1D67a94399FFD722",
   "keeper": "0xa4e52e959F0aa6D79fb4eBFC5076bd0Bf85F8432",
   "trustedContacts": [

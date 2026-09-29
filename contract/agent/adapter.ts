@@ -108,6 +108,14 @@ function toTxRow(e: ChainEvent, contacts: string[]) {
       event = "BeneficiariesSet";
       details = `${(a.beneficiaries as string[]).length} beneficiary wallets registered`;
       break;
+    case "ContactRoleAccepted":
+      event = "ContactAccepted";
+      details = `Trusted contact ${contactNo(a.contact)} accepted the role on-chain`;
+      break;
+    case "ContactRoleDeclined":
+      event = "ContactDeclined";
+      details = `Trusted contact ${contactNo(a.contact)} declined the role on-chain`;
+      break;
   }
   return { event, tx_hash: e.txHash, timestamp: iso(e.timestamp), explorer_url: explorerTx(e.txHash), details };
 }
@@ -149,6 +157,7 @@ app.get("/status", async (_req, res) => {
           name: c?.name ?? `Trusted contact ${i + 1}`,
           relation: c?.relation ?? null,
           wallet,
+          accepted: Boolean(s.contactAccepted[i]), // on-chain Trusted Circle acceptance
           confirmed: confirmedBy[i],
         };
       }),
@@ -254,18 +263,27 @@ app.post("/contacts", async (req, res) => {
   }
 });
 
-app.post("/contact-status", (req, res) => {
+app.post("/contact-status", async (req, res) => {
   const index = req.body?.contact_index;
   const status = req.body?.status;
   if (![0, 1, 2].includes(index) || !["accepted", "declined"].includes(status)) {
     return res.status(400).json({ error: "contact_index must be 0-2 and status accepted|declined" });
   }
+  // Remember it off-chain for display either way
   const circle = readCircle();
   const entry = circle.find((c) => c.index === index);
   if (entry) entry.status = status;
   else circle.push({ index, name: null, relation: null, wallet: null, status });
   writeCircle(circle);
-  res.json({ ok: true, stored_off_chain: true, on_chain_updated: false, note: "On-chain acceptRole() needs a contract upgrade (planned)." });
+
+  if (!CUSTODIAL) {
+    return res.json({ ok: true, stored_off_chain: true, on_chain_updated: false, note: "The contact must call acceptRole()/declineRole() from their own wallet." });
+  }
+  // Demo custodial: the contact's key signs acceptRole()/declineRole()
+  const wallet = await contactWallet(index, res);
+  if (!wallet) return;
+  const fn = status === "accepted" ? "acceptRole" : "declineRole";
+  return sendAs(res, `${fn} (contact ${index + 1})`, wallet, (v, o) => v[fn](o));
 });
 
 app.post("/beneficiaries", (req, res) => {
@@ -291,6 +309,7 @@ const REFUSAL_TEXT: Record<string, string> = {
   AlreadyConfirmed: "This contact already confirmed in this round",
   NotTrustedContact: "This wallet is not one of the 3 trusted contacts",
   NotOwner: "Only the vault owner can do this",
+  ContactNotAccepted: "This contact has not accepted the trusted-contact role on-chain",
 };
 
 function envWallet(keyName: string): ethers.Wallet | null {
@@ -337,21 +356,35 @@ app.post("/checkin", async (_req, res) => {
   return sendAs(res, "checkIn", owner, (v, o) => v.checkIn(o));
 });
 
+/**
+ * The .env key for trusted contact `index` (0-2), checked against the on-chain contact list
+ * so we never sign as the wrong person. Sends the error response itself and returns null on failure.
+ */
+async function contactWallet(index: number, res: express.Response): Promise<ethers.Wallet | null> {
+  const wallet = envWallet(`CONTACT${index + 1}_PRIVATE_KEY`);
+  if (!wallet) {
+    res.status(500).json({ error: `CONTACT${index + 1}_PRIVATE_KEY missing in the keeper's .env` });
+    return null;
+  }
+  try {
+    const onChain: string = await readVault.trustedContacts(index);
+    if (onChain.toLowerCase() !== wallet.address.toLowerCase()) {
+      res.status(409).json({ error: `Key for contact ${index + 1} (${wallet.address}) is not on-chain contact ${index + 1} (${onChain})` });
+      return null;
+    }
+  } catch (e: any) {
+    res.status(502).json({ error: `chain read failed: ${e?.shortMessage || e?.message}` });
+    return null;
+  }
+  return wallet;
+}
+
 app.post("/confirm", async (req, res) => {
   if (!CUSTODIAL) return custodialOff(res, "Death confirmation");
   const index = req.body?.contact_index;
   if (![0, 1, 2].includes(index)) return res.status(400).json({ error: "contact_index must be 0, 1 or 2" });
-  const wallet = envWallet(`CONTACT${index + 1}_PRIVATE_KEY`);
-  if (!wallet) return res.status(500).json({ error: `CONTACT${index + 1}_PRIVATE_KEY missing in the keeper's .env` });
-  try {
-    const onChain: string = await readVault.trustedContacts(index);
-    // Safety: the key we'd sign with must belong to exactly this on-chain contact
-    if (onChain.toLowerCase() !== wallet.address.toLowerCase()) {
-      return res.status(409).json({ error: `Key for contact ${index + 1} (${wallet.address}) is not on-chain contact ${index + 1} (${onChain})` });
-    }
-  } catch (e: any) {
-    return res.status(502).json({ error: `chain read failed: ${e?.shortMessage || e?.message}` });
-  }
+  const wallet = await contactWallet(index, res);
+  if (!wallet) return;
   return sendAs(res, `confirmDeath (contact ${index + 1})`, wallet, (v, o) => v.confirmDeath(o));
 });
 

@@ -16,12 +16,14 @@ export default function TrustedContact() {
   const myIndex = status.trustedContacts.findIndex((c) => sameAddr(c, wallet.account));
   const isContact = myIndex >= 0;
   const alreadyConfirmed = isContact && status.confirmedBy[myIndex];
+  const hasAccepted = isContact && status.contactAccepted[myIndex];
   const graceLeft = status.graceDeadline - now;
 
   // The first rule that fails explains why the button is disabled
   let reason = "";
   if (!wallet.account) reason = "Connect your wallet to confirm.";
   else if (!isContact) reason = "The connected address is not one of the 3 trusted contacts.";
+  else if (!hasAccepted) reason = "Accept the trusted-contact role first (below). Only contacts who accepted can confirm.";
   else if (status.state === VaultState.ACTIVE) reason = "The owner is checking in normally. Nothing to confirm.";
   else if (status.state === VaultState.CONFIRMED) reason = "Already confirmed by 2 contacts. Release is pending.";
   else if (status.state === VaultState.RELEASED) reason = "The vault has already been released.";
@@ -47,6 +49,7 @@ export default function TrustedContact() {
         {status.trustedContacts.map((c, i) => (
           <Row key={c + i} label={`Contact ${i + 1}`}>
             <Address addr={c} you={i === myIndex} />{" "}
+            {status.contactAccepted[i] ? <span className="tag">accepted</span> : <span className="tag">not accepted</span>}
             {status.confirmedBy[i] ? <span className="tag tag-ok">confirmed</span> : <span className="tag">waiting</span>}
           </Row>
         ))}
@@ -56,6 +59,27 @@ export default function TrustedContact() {
           </Row>
         )}
       </Card>
+
+      {isContact && (
+        <Card title="Your role">
+          <p className="muted">
+            As a trusted contact you agree to confirm the owner's death if it happens. Only contacts who accepted can ever confirm, so
+            nobody can trigger a release without agreeing to this role first.
+          </p>
+          <div className="actions">
+            {hasAccepted ? (
+              <button className="btn" disabled={busy || status.state === VaultState.RELEASED} onClick={() => run("Decline role", (v, o) => v.declineRole(o))}>
+                Step down (decline role)
+              </button>
+            ) : (
+              <button className="btn btn-primary" disabled={busy || status.state === VaultState.RELEASED} onClick={() => run("Accept role", (v, o) => v.acceptRole(o))}>
+                Accept trusted-contact role
+              </button>
+            )}
+            <span className="muted">Status: {hasAccepted ? "accepted" : "not accepted"}</span>
+          </div>
+        </Card>
+      )}
 
       <Card title="Confirm">
         <p className="muted">
