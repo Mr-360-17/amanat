@@ -106,7 +106,7 @@ def set_contacts(state: dict, contacts: list[dict], tokens: dict[str, str] | Non
         else:
             c = {"name": new["name"], "relation": new["relation"], "phone": new.get("phone"),
                  "wallet": new.get("wallet"), "status": PENDING,
-                 "token": tokens.get(new["name"]) or secrets.token_urlsafe(12),
+                 "token": tokens.get(new["name"]) or new_token(),
                  "invited_at": None, "accepted_at": None,
                  "last_seen_at": None, "ping_pending_since": None}
         c["id"], c["index"] = f"C{i + 1}", i
@@ -128,9 +128,27 @@ def resend_invite(state: dict, contact_id: str) -> dict:
     raise KeyError(contact_id)
 
 
+_ALNUM = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+
+def new_token(length: int = 18) -> str:
+    """Letters and digits only: chat apps drop a trailing '-' or '_' from links, which
+    silently broke a demo phone's link. (No 0/O/1/l/I, so it can be read aloud too.)"""
+    return "".join(secrets.choice(_ALNUM) for _ in range(length))
+
+
+def token_matches(stored: str, given: str) -> bool:
+    """Exact match, or the same token with leading/trailing '-'/'_' lost in a chat app
+    (older tokens could contain them)."""
+    if secrets.compare_digest(stored.encode(), given.encode()):
+        return True
+    trimmed = stored.strip("-_")
+    return trimmed != stored and len(trimmed) >= 12 and secrets.compare_digest(trimmed.encode(), given.encode())
+
+
 def find(state: dict, token: str) -> dict | None:
     _ensure(state)
-    return next((c for c in state["contacts"] if secrets.compare_digest(c["token"], token)), None)
+    return next((c for c in state["contacts"] if token_matches(c["token"], token)), None)
 
 
 def respond(state: dict, token: str, accept: bool) -> dict:

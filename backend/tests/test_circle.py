@@ -120,6 +120,21 @@ def test_contact_confirms_from_own_link_only_after_accepting(demo):
     assert stranger.post("/circle/bogus-token/confirm").status_code == 404
 
 
+def test_link_with_trailing_dash_cut_off_by_chat_app_still_works():
+    from amanat import circle
+    assert circle.token_matches("uquEava3veQXrwL-", "uquEava3veQXrwL-")
+    assert circle.token_matches("uquEava3veQXrwL-", "uquEava3veQXrwL")    # WhatsApp dropped the '-'
+    assert circle.token_matches("-i0HKP4gfETyNENy", "i0HKP4gfETyNENy")
+    assert not circle.token_matches("uquEava3veQXrwL-", "uquEava3veQXrw")  # anything else still fails
+    assert not circle.token_matches("abcdefghijk", "abcdefghijk-")
+
+
+def test_new_tokens_are_letters_and_digits_only():
+    from amanat import circle
+    toks = [circle.new_token() for _ in range(200)]
+    assert all(t.isalnum() and len(t) == 18 for t in toks) and len(set(toks)) == 200
+
+
 def test_bad_token_is_rejected():
     assert client.get("/circle/not-a-real-token").status_code == 404
     assert client.post("/circle/not-a-real-token/accept").status_code == 404

@@ -3,8 +3,6 @@ are only told about it when the vault is RELEASED. Before release the link shows
 
 All functions work on the decrypted vault state dict; Store handles locking + sealing.
 """
-import secrets
-
 from . import circle, config
 
 
@@ -32,7 +30,7 @@ def sync(state: dict, tokens: dict[str, str] | None = None) -> list[dict]:
             if k in seen:
                 continue
             seen.add(k)
-            m = existing.get(k) or {"token": tokens.get(b["name"]) or secrets.token_urlsafe(12),
+            m = existing.get(k) or {"token": tokens.get(b["name"]) or circle.new_token(),
                                     "notified_at": None}
             members.append({**m, "name": b["name"], "relation": b.get("relation"),
                             "phone": phones.get(k) or m.get("phone")})
@@ -41,7 +39,7 @@ def sync(state: dict, tokens: dict[str, str] | None = None) -> list[dict]:
 
 
 def find(state: dict, token: str) -> dict | None:
-    return next((m for m in state.get("family", []) if secrets.compare_digest(m["token"], token)), None)
+    return next((m for m in state.get("family", []) if circle.token_matches(m["token"], token)), None)
 
 
 def _assets_for(state: dict, name: str) -> list[dict]:
